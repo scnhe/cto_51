@@ -3,6 +3,12 @@
 #include<Windows.h>
 #pragma comment(lib,"ws2_32.lib")
 #include<iostream>
+struct DataPackage
+{
+	int age;
+	char name[32];
+
+};
 int main()
 {
 	WORD ver = MAKEWORD(2, 2);
@@ -38,7 +44,8 @@ int main()
 		}
 		char recvBuf[128] = {};
 		recv(sock, recvBuf, 128, 0);
-		std::cout << "from server:" << recvBuf << std::endl;
+		DataPackage *pack = (DataPackage *)recvBuf;
+		std::cout << "from server:" << pack->age <<" "<<pack->name<< std::endl;
 	}
 	getchar();
 	closesocket(sock);

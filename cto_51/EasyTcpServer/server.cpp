@@ -3,6 +3,12 @@
 #include<Windows.h>
 #pragma comment(lib,"ws2_32.lib")
 #include<iostream>
+struct DataPackage
+{
+	int age;
+	char name[32];
+
+};
 int main()
 {
 	WORD ver = MAKEWORD(2,2);
@@ -52,6 +58,12 @@ int main()
 		{
 			char _buf[] = "30";
 			send(_clientSock, _buf, strlen(_buf) + 1, 0);
+
+		}
+		else if (0 == strcmp(recvBuf, "getInfo"))
+		{
+			DataPackage pack = { 35,"Yang" };			
+			send(_clientSock, (char *)&pack, sizeof(DataPackage), 0);
 
 		}
 		else {
