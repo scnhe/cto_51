@@ -1,4 +1,4 @@
-
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include<WinSock2.h>
 #include<Windows.h>
 #pragma comment(lib,"ws2_32.lib")
@@ -27,14 +27,40 @@ int main()
 	sockaddr_in _client = {};
 	int nAddrLen = sizeof(_client);// = 5;
 	char msgBuf[] = "I'm server";
+	SOCKET _clientSock = accept(sock, (sockaddr *)&_client, &nAddrLen);
+	if (INVALID_SOCKET == _clientSock)
+	{
+		std::cout << "Client " << inet_ntoa(_client.sin_addr) << std::endl;
+		send(_clientSock, msgBuf, strlen(msgBuf) + 1, 0);
+	}
+	char recvBuf[128] = {};
 	while (true)
 	{
-		SOCKET _clientSock = accept(sock, (sockaddr *)&_client, &nAddrLen);
-		if (INVALID_SOCKET != _clientSock)
+		int nLen = recv(_clientSock, recvBuf, 128, 0);
+		if (nLen <= 0)
 		{
-			std::cout <<"Client "<<inet_ntoa(_client.sin_addr)<<std::endl;
-			send(_clientSock, msgBuf, strlen(msgBuf) + 1, 0);
+			break;
 		}
+		//´¦ÀíÇëÇó
+		if (0 == strcmp(recvBuf,"getName"))
+		{
+			char _buf[] = "Liu";
+			send(_clientSock, _buf, strlen(_buf) + 1, 0);
+		
+		}
+		else if (0 == strcmp(recvBuf, "getAge"))
+		{
+			char _buf[] = "30";
+			send(_clientSock, _buf, strlen(_buf) + 1, 0);
+
+		}
+		else {
+			char _buf[] = "???";
+			send(_clientSock, _buf, strlen(_buf) + 1, 0);
+
+		
+		}
+		
 
 		
 	}

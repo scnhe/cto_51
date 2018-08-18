@@ -22,10 +22,23 @@ int main()
 	}
 	else
 	{
-		char buf[128];
-		int len=128;
-		int key = recv(sock, buf, len, 0);
-		std::cout << "recv = " << buf << " " << key << std::endl;
+		
+	}
+	
+	while (true)
+	{
+		char cmd[128] = {};
+		scanf("%s", cmd);
+		if (0 == strcmp(cmd, "exit"))
+		{
+			break;
+		}
+		else {
+			send(sock, cmd, strlen(cmd) + 1, 0);
+		}
+		char recvBuf[128] = {};
+		recv(sock, recvBuf, 128, 0);
+		std::cout << "from server:" << recvBuf << std::endl;
 	}
 	getchar();
 	closesocket(sock);
