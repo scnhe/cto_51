@@ -96,20 +96,23 @@ int main()
 	while (true)
 	{
 		//接收客户端数据
-		DataHeader header = {};
-		int nLen = recv(_clientSock, (char *)&header, sizeof(DataHeader), 0);
+		char szRecv[1024] = {};
+		
+		int nLen = recv(_clientSock, szRecv, sizeof(DataHeader), 0);
+		DataHeader *header = (DataHeader *)szRecv;
 		if (nLen <= 0)
 		{
 			break;
 		}
-		std::cout << "接收到命令： " << header.cmd << " 数据长度：" << header.dataLength << std::endl;
-		switch (header.cmd)
+		std::cout << "接收到命令： " << header->cmd << " 数据长度：" << header->dataLength << std::endl;
+		switch (header->cmd)
 		{
 		case CMD_LOGIN:
 		{
-			Login login = {};
-			recv(_clientSock, (char *)&login+sizeof(DataHeader), sizeof(Login)-sizeof(DataHeader), 0);
-			std::cout << "UserName: " << login.userName << std::endl;
+			Login *login = NULL;
+			recv(_clientSock, szRecv+sizeof(DataHeader), header->dataLength-sizeof(DataHeader), 0);
+			login = (Login*)szRecv;
+			std::cout << "UserName: " << login->userName << std::endl;
 			//验证账号密码，此处忽略
 			/*DataHeader header = {};
 			header.dataLength = sizeof(LoginResult);
@@ -124,8 +127,9 @@ int main()
 		break;
 		case CMD_LOGOUT:
 		{
-			LogOut out = {};
-			recv(_clientSock, (char *)&out + sizeof(DataHeader), sizeof(LogOut) - sizeof(DataHeader), 0);
+			LogOut *out = NULL;
+			recv(_clientSock, szRecv + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
+			out = (LogOut*)szRecv;
 			//验证账号密码，此处忽略
 			/*DataHeader header = {};
 			header.dataLength = sizeof(LoginResult);
@@ -139,9 +143,9 @@ int main()
 		break;
 		default:
 		{
-			header.cmd = CMD_ERROR;
-			header.dataLength = 0;
-			send(_clientSock, (char *)&header, sizeof(DataHeader), 0);
+			header->cmd = CMD_ERROR;
+			header->dataLength = 0;
+			send(_clientSock, (char *)header, sizeof(DataHeader), 0);
 
 		
 		}
