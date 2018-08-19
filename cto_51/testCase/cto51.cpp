@@ -83,6 +83,9 @@ int main()
 	p = NULL;
 	std::cout << &header << std::endl;
 	p = reverse(&header);
+	const int b = 12;
+	int c = b;
+	c++;
 
 	return	0;
 }
