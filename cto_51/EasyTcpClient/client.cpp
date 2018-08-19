@@ -9,6 +9,42 @@ struct DataPackage
 	char name[32];
 
 };
+enum CMD
+{
+	CMD_LOGIN,
+	CMD_LOGOUT,
+	CMD_ERROR
+};
+//msg header
+struct DataHeader
+{
+	short dataLength;
+	short cmd;
+
+};
+struct Login
+{
+	char userName[32];
+	char passWord[32];
+
+};
+struct LoginResult
+{
+	int result;
+
+};
+//登出操作
+struct LogOut
+{
+	char userName[32];
+
+};
+//登出结果
+struct LogOutResult
+{
+	int result;
+
+};
 int main()
 {
 	WORD ver = MAKEWORD(2, 2);
@@ -39,13 +75,39 @@ int main()
 		{
 			break;
 		}
-		else {
-			send(sock, cmd, strlen(cmd) + 1, 0);
+		else if (0 == strcmp(cmd, "login")) {
+			Login login = {"liu","1234567"};
+			DataHeader header;
+			header.cmd = CMD_LOGIN;
+			header.dataLength = sizeof(Login);
+			send(sock, (char *)&header, sizeof(DataHeader), 0);
+			send(sock, (char *)&login, sizeof(Login), 0);
+			/*send(sock, cmd, strlen(cmd) + 1, 0);*/
+			recv(sock, (char *)&header, sizeof(DataHeader), 0);
+			LoginResult result = {};
+			recv(sock, (char *)&result, sizeof(LoginResult), 0);
+			std::cout << "登陆结果为：" << result.result << std::endl;
 		}
-		char recvBuf[128] = {};
+		else if (0 == strcmp(cmd, "logout")) {
+			/*send(sock, cmd, strlen(cmd) + 1, 0);*/
+			LogOut logout = { "liu" };
+			DataHeader header = { sizeof(LogOut),CMD_LOGOUT};
+			send(sock, (char *)&header, sizeof(DataHeader), 0);
+			send(sock, (char *)&logout, sizeof(LogOut), 0);
+			/*send(sock, cmd, strlen(cmd) + 1, 0);*/
+			recv(sock, (char *)&header, sizeof(DataHeader), 0);
+			LogOutResult result = {};
+			recv(sock, (char *)&result, sizeof(LogOutResult), 0);
+			std::cout << "登出结果为：" << result.result << std::endl;
+
+		}
+		else {
+			std::cout << "不支持的命令" << std::endl;
+		}
+		/*char recvBuf[128] = {};
 		recv(sock, recvBuf, 128, 0);
 		DataPackage *pack = (DataPackage *)recvBuf;
-		std::cout << "from server:" << pack->age <<" "<<pack->name<< std::endl;
+		std::cout << "from server:" << pack->age <<" "<<pack->name<< std::endl;*/
 	}
 	getchar();
 	closesocket(sock);

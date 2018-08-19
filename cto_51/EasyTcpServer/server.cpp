@@ -7,7 +7,8 @@
 enum CMD
 {
 	CMD_LOGIN,
-	CMD_LOGINOUT
+	CMD_LOGOUT,
+	CMD_ERROR
 };
 //msg header
 struct DataHeader
@@ -27,12 +28,14 @@ struct LoginResult
 	int result;
 
 };
-struct LoginOut
+//登出操作
+struct LogOut
 {
 	char userName[32];
 
 };
-struct LoginOutResult
+//登出结果
+struct LogOutResult
 {
 	int result;
 
@@ -70,58 +73,83 @@ int main()
 	char recvBuf[128] = {};
 	while (true)
 	{
+		//接收客户端数据
 		DataHeader header = {};
 		int nLen = recv(_clientSock, (char *)&header, sizeof(DataHeader), 0);
 		if (nLen <= 0)
 		{
 			break;
 		}
-		std::cout << "receive cmd " << header.cmd << " " << header.dataLength << std::endl;
+		std::cout << "接收到命令： " << header.cmd << " 数据长度：" << header.dataLength << std::endl;
 		switch (header.cmd)
 		{
 		case CMD_LOGIN:
 		{
 			Login login = {};
 			recv(_clientSock, (char *)&login, sizeof(Login), 0);
-
+			std::cout << "UserName: " << login.userName << std::endl;
+			//验证账号密码，此处忽略
+			/*DataHeader header = {};
+			header.dataLength = sizeof(LoginResult);
+			header.cmd = CMD_LOGIN;*/
 			LoginResult result = {};
+			result.result = 0;
+			send(_clientSock, (char *)&header, sizeof(DataHeader), 0);
+			send(_clientSock, (char *)&result, sizeof(LoginResult), 0);
 			/*send(_clientSock,)*/
 		
 		}
 		break;
-		case CMD_LOGINOUT:
+		case CMD_LOGOUT:
 		{
-
+			LogOut out = {};
+			recv(_clientSock, (char *)&out, sizeof(LogOut), 0);
+			//验证账号密码，此处忽略
+			/*DataHeader header = {};
+			header.dataLength = sizeof(LoginResult);
+			header.cmd = CMD_LOGIN;*/
+			LogOutResult result = {};
+			result.result = 0;
+			send(_clientSock, (char *)&header, sizeof(DataHeader), 0);
+			send(_clientSock, (char *)&result, sizeof(LogOutResult), 0);
+			/*send(_clientSock,)*/
 		}
 		break;
 		default:
+		{
+			header.cmd = CMD_ERROR;
+			header.dataLength = 0;
+			send(_clientSock, (char *)&header, sizeof(DataHeader), 0);
+
+		
+		}
 			break;
 		}
-		//处理请求
-		if (0 == strcmp(recvBuf,"getName"))
-		{
-			char _buf[] = "Liu";
-			send(_clientSock, _buf, strlen(_buf) + 1, 0);
-		
-		}
-		else if (0 == strcmp(recvBuf, "getAge"))
-		{
-			char _buf[] = "30";
-			send(_clientSock, _buf, strlen(_buf) + 1, 0);
+		////处理请求
+		//if (0 == strcmp(recvBuf,"getName"))
+		//{
+		//	char _buf[] = "Liu";
+		//	send(_clientSock, _buf, strlen(_buf) + 1, 0);
+		//
+		//}
+		//else if (0 == strcmp(recvBuf, "getAge"))
+		//{
+		//	char _buf[] = "30";
+		//	send(_clientSock, _buf, strlen(_buf) + 1, 0);
 
-		}
-		else if (0 == strcmp(recvBuf, "getInfo"))
-		{
-			DataPackage pack = { 35,"Yang" };			
-			send(_clientSock, (char *)&pack, sizeof(DataPackage), 0);
+		//}
+		//else if (0 == strcmp(recvBuf, "getInfo"))
+		//{
+		//	DataPackage pack = { 35,"Yang" };			
+		//	send(_clientSock, (char *)&pack, sizeof(DataPackage), 0);
 
-		}
-		else {
-			char _buf[] = "???";
-			send(_clientSock, _buf, strlen(_buf) + 1, 0);
+		//}
+		//else {
+		//	char _buf[] = "???";
+		//	send(_clientSock, _buf, strlen(_buf) + 1, 0);
 
-		
-		}
+		//
+		//}
 		
 
 		
