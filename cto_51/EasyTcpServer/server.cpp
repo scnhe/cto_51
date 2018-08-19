@@ -3,10 +3,38 @@
 #include<Windows.h>
 #pragma comment(lib,"ws2_32.lib")
 #include<iostream>
-struct DataPackage
+
+enum CMD
 {
-	int age;
-	char name[32];
+	CMD_LOGIN,
+	CMD_LOGINOUT
+};
+//msg header
+struct DataHeader
+{
+	short dataLength;
+	short cmd;
+
+};
+struct Login
+{
+	char userName[32];
+	char passWord[32];
+
+}; 
+struct LoginResult
+{
+	int result;
+
+};
+struct LoginOut
+{
+	char userName[32];
+
+};
+struct LoginOutResult
+{
+	int result;
 
 };
 int main()
@@ -42,9 +70,31 @@ int main()
 	char recvBuf[128] = {};
 	while (true)
 	{
-		int nLen = recv(_clientSock, recvBuf, 128, 0);
+		DataHeader header = {};
+		int nLen = recv(_clientSock, (char *)&header, sizeof(DataHeader), 0);
 		if (nLen <= 0)
 		{
+			break;
+		}
+		std::cout << "receive cmd " << header.cmd << " " << header.dataLength << std::endl;
+		switch (header.cmd)
+		{
+		case CMD_LOGIN:
+		{
+			Login login = {};
+			recv(_clientSock, (char *)&login, sizeof(Login), 0);
+
+			LoginResult result = {};
+			/*send(_clientSock,)*/
+		
+		}
+		break;
+		case CMD_LOGINOUT:
+		{
+
+		}
+		break;
+		default:
 			break;
 		}
 		//´¦ÀíÇëÇó
