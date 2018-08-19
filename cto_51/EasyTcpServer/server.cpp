@@ -7,7 +7,9 @@
 enum CMD
 {
 	CMD_LOGIN,
+	CMD_LOGIN_RESULT,
 	CMD_LOGOUT,
+	CMD_LOGOUT_RESULT,
 	CMD_ERROR
 };
 //msg header
@@ -17,26 +19,46 @@ struct DataHeader
 	short cmd;
 
 };
-struct Login
-{
+struct Login:public DataHeader
+{//也可以包含一个DataHeader对象
+	Login()
+	{
+		dataLength = sizeof(Login);
+		cmd = CMD_LOGIN;
+	}
 	char userName[32];
 	char passWord[32];
 
 }; 
-struct LoginResult
+struct LoginResult :public DataHeader
 {
+	LoginResult()
+	{
+		dataLength = sizeof(LoginResult);
+		cmd = CMD_LOGIN_RESULT;
+	}
 	int result;
 
 };
 //登出操作
-struct LogOut
+struct LogOut :public DataHeader
 {
+	LogOut()
+	{
+		dataLength = sizeof(LogOut);
+		cmd = CMD_LOGOUT;
+	}
 	char userName[32];
 
 };
 //登出结果
-struct LogOutResult
+struct LogOutResult :public DataHeader
 {
+	LogOutResult()
+	{
+		dataLength = sizeof(LogOutResult);
+		cmd = CMD_LOGOUT_RESULT;
+	}
 	int result;
 
 };
@@ -86,7 +108,7 @@ int main()
 		case CMD_LOGIN:
 		{
 			Login login = {};
-			recv(_clientSock, (char *)&login, sizeof(Login), 0);
+			recv(_clientSock, (char *)&login+sizeof(DataHeader), sizeof(Login)-sizeof(DataHeader), 0);
 			std::cout << "UserName: " << login.userName << std::endl;
 			//验证账号密码，此处忽略
 			/*DataHeader header = {};
@@ -94,7 +116,7 @@ int main()
 			header.cmd = CMD_LOGIN;*/
 			LoginResult result = {};
 			result.result = 0;
-			send(_clientSock, (char *)&header, sizeof(DataHeader), 0);
+			/*send(_clientSock, (char *)&header, sizeof(DataHeader), 0);*/
 			send(_clientSock, (char *)&result, sizeof(LoginResult), 0);
 			/*send(_clientSock,)*/
 		
@@ -103,14 +125,14 @@ int main()
 		case CMD_LOGOUT:
 		{
 			LogOut out = {};
-			recv(_clientSock, (char *)&out, sizeof(LogOut), 0);
+			recv(_clientSock, (char *)&out + sizeof(DataHeader), sizeof(LogOut) - sizeof(DataHeader), 0);
 			//验证账号密码，此处忽略
 			/*DataHeader header = {};
 			header.dataLength = sizeof(LoginResult);
 			header.cmd = CMD_LOGIN;*/
 			LogOutResult result = {};
 			result.result = 0;
-			send(_clientSock, (char *)&header, sizeof(DataHeader), 0);
+			/*send(_clientSock, (char *)&header, sizeof(DataHeader), 0);*/
 			send(_clientSock, (char *)&result, sizeof(LogOutResult), 0);
 			/*send(_clientSock,)*/
 		}
