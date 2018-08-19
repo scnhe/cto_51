@@ -86,6 +86,8 @@ int main()
 	const int b = 12;
 	int c = b;
 	c++;
-
+	char str_array[] = "abcdefg";
+	char *pstr = NULL;//不能用"xxx"初始化
+	std::string stdstring = "abcdefg";
 	return	0;
 }
