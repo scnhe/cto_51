@@ -77,7 +77,7 @@ int process(SOCKET _clientSock)
 		return -1;
 	}
 
-	std::cout << "接收到命令： " << header->cmd << " 数据长度：" << header->dataLength << std::endl;
+	std::cout <<"SOCKET:"<<_clientSock<< " 接收到命令： " << header->cmd << " 数据长度：" << header->dataLength << std::endl;
 	switch (header->cmd)
 	{
 	case CMD_LOGIN:
@@ -128,7 +128,7 @@ int process(SOCKET _clientSock)
 }
 int main()
 {
-	WORD ver = MAKEWORD(2,2);
+	WORD ver = MAKEWORD(2, 2);
 	WSADATA dat;
 	WSAStartup(ver, &dat);
 
@@ -139,7 +139,7 @@ int main()
 	_sin.sin_addr.S_un.S_addr = INADDR_ANY;
 	_sin.sin_port = htons(7856);
 
-	if(SOCKET_ERROR == bind(sock, (sockaddr *)&_sin, sizeof(_sin)))
+	if (SOCKET_ERROR == bind(sock, (sockaddr *)&_sin, sizeof(_sin)))
 	{
 		std::cout << "bind port 7856 error\n";
 	}
@@ -147,7 +147,7 @@ int main()
 		std::cout << "bind port 7856 success\n";
 	}
 	listen(sock, 5);
-	
+
 	char recvBuf[128] = {};
 	while (true)
 	{
@@ -162,11 +162,11 @@ int main()
 		FD_SET(sock, &fd_read);
 		FD_SET(sock, &fd_write);
 		FD_SET(sock, &fd_except);
-		for (int n = g_clients.size()-1; n >=0; n--)
+		for (int n = g_clients.size() - 1; n >= 0; n--)
 		{
 			FD_SET(g_clients[n], &fd_read);
 		}
-		int ret = select(sock+1,&fd_read,&fd_write,&fd_except,NULL);
+		int ret = select(sock + 1, &fd_read, &fd_write, &fd_except, NULL);
 		if (ret <= 0)
 		{
 			std::cout << "select任务结束！ " << std::endl;
@@ -189,15 +189,20 @@ int main()
 			g_clients.push_back(_clientSock);
 
 		}
-		for (int n = 0; n <fd_read.fd_count; n++)
+		for (int n = 0; n < fd_read.fd_count; n++)
 		{
 			if (-1 == process(fd_read.fd_array[n]))
 			{
 				auto iter = std::find(g_clients.begin(), g_clients.end(), fd_read.fd_array[n]);
+				if (iter != g_clients.end())
+				{
+					g_clients.erase(iter);
+				}
+
 			}
 
 		}
-		
+
 		////处理请求
 		//if (0 == strcmp(recvBuf,"getName"))
 		//{
@@ -223,9 +228,13 @@ int main()
 
 		//
 		//}
-		
 
-		
+
+
+	}
+	for (size_t n = g_clients.size() - 1; n >= 0; n--)
+	{
+		closesocket(g_clients[n]);
 	}
 	
 	closesocket(sock);

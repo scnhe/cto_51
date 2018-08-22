@@ -89,5 +89,6 @@ int main()
 	char str_array[] = "abcdefg";
 	char *pstr = NULL;//不能用"xxx"初始化
 	std::string stdstring = "abcdefg";
+	std::cout << "strring addr is " << &stdstring << " " << stdstring.c_str() << std::endl;
 	return	0;
 }

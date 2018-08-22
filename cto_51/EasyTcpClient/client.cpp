@@ -134,7 +134,7 @@ int main()
 		DataPackage *pack = (DataPackage *)recvBuf;
 		std::cout << "from server:" << pack->age <<" "<<pack->name<< std::endl;*/
 	}
-	getchar();
+//	getchar();
 	closesocket(sock);
 	getchar();
 	WSACleanup();
