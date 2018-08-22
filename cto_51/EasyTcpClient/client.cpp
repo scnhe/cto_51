@@ -3,6 +3,7 @@
 #include<Windows.h>
 #pragma comment(lib,"ws2_32.lib")
 #include<iostream>
+#include<thread>
 struct DataPackage
 {
 	int age;
@@ -134,6 +135,40 @@ int process(SOCKET _clientSock)
 	}
 	return 0;
 }
+bool g_bRun = true;
+void cmdThread(SOCKET sock)
+{
+	while (true)
+	{
+		char cmd[128] = {};
+		scanf("%s", cmd);
+		if (0 == strcmp(cmd, "exit"))
+		{
+			std::cout << "退出" << std::endl;
+			g_bRun = false;
+			break;
+		}
+		else if (0 == strcmp(cmd, "login"))
+		{
+			Login login;
+			strcpy(login.userName, "liu");
+			strcpy(login.passWord, "12345");
+			send(sock, (char *)&login, sizeof(Login), 0);
+		}
+		else if (0 == strcmp(cmd, "logout"))
+		{
+			LogOut logout;// = { "liu" };  
+			strcpy(logout.userName, "liu");
+			send(sock, (char *)&logout, sizeof(LogOut), 0);
+		}
+		else {
+			std::cout << "不支持的命令" << std::endl;
+		}
+
+	}
+	
+	
+}
 int main()
 {
 	WORD ver = MAKEWORD(2, 2);
@@ -155,8 +190,10 @@ int main()
 	{
 		std::cout << "客户端" << sock << "连接服务器成功" << std::endl;
 	}
-	
-	while (true)
+	std::thread t(cmdThread,sock);
+//	t.join();
+	t.detach();
+	while (g_bRun)
 	{
 
 		fd_set fdReads;
@@ -185,12 +222,8 @@ int main()
 			}
 		}
 		std::cout << "空闲时间处理其他数据" << std::endl;
-		Login log;
-		strcpy(log.userName, "Liu");
-		strcpy(log.passWord, "hhhhhhh");
-		send(sock, (char *)&log, sizeof(Login), 0);
-		Sleep(1000);
 		
+		Sleep(1000);
 		/*char recvBuf[128] = {};
 		recv(sock, recvBuf, 128, 0);
 		DataPackage *pack = (DataPackage *)recvBuf;
