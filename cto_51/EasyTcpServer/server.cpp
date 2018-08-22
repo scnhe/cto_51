@@ -11,7 +11,8 @@ enum CMD
 	CMD_LOGIN_RESULT,
 	CMD_LOGOUT,
 	CMD_LOGOUT_RESULT,
-	CMD_ERROR
+	CMD_ERROR,
+	CMD_NEW_USER_JOIN
 };
 //msg header
 struct DataHeader
@@ -63,6 +64,17 @@ struct LogOutResult :public DataHeader
 	int result;
 
 };
+struct NewUserJoin :public DataHeader
+{
+	NewUserJoin()
+	{
+		dataLength = sizeof(LogOutResult);
+		cmd = CMD_NEW_USER_JOIN;
+		SocketId = 0;
+	}
+	int SocketId;
+
+};
 std::vector<SOCKET> g_clients;
 int process(SOCKET _clientSock)
 {
@@ -85,7 +97,7 @@ int process(SOCKET _clientSock)
 		Login *login = NULL;
 		recv(_clientSock, szRecv + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
 		login = (Login*)szRecv;
-		std::cout << "UserName: " << login->userName << std::endl;
+		std::cout << _clientSock<<" 接收到登陆命令:"<<"UserName: " << login->userName << std::endl;
 		//验证账号密码，此处忽略
 		/*DataHeader header = {};
 		header.dataLength = sizeof(LoginResult);
@@ -166,7 +178,7 @@ int main()
 		{
 			FD_SET(g_clients[n], &fd_read);
 		}
-		timeval t = {0,0};
+		timeval t = {1,0};
 	//	SOCKET_ERROR
 		int ret = select(sock + 1, &fd_read, &fd_write, &fd_except, &t);
 		if (ret < 0)
@@ -184,10 +196,16 @@ int main()
 			SOCKET _clientSock = accept(sock, (sockaddr *)&_client, &nAddrLen);
 			if (INVALID_SOCKET == _clientSock)
 			{
-				std::cout << "Client " << inet_ntoa(_client.sin_addr) << std::endl;
+				
 				send(_clientSock, msgBuf, strlen(msgBuf) + 1, 0);
 			}
-
+			std::cout << "欢迎新客户端加入：" << inet_ntoa(_client.sin_addr) <<" "<< _clientSock <<std::endl;
+			for (int n = g_clients.size() - 1; n >= 0; n--)
+			{
+				NewUserJoin userJoin;
+				userJoin.SocketId = _clientSock;
+				send(g_clients[n], (char *)&userJoin, sizeof(NewUserJoin), 0);
+			}
 			g_clients.push_back(_clientSock);
 
 		}
@@ -204,6 +222,7 @@ int main()
 			}
 
 		}
+		std::cout << "处理其他业务" << std::endl;
 
 		////处理请求
 		//if (0 == strcmp(recvBuf,"getName"))
