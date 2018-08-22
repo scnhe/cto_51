@@ -166,13 +166,15 @@ int main()
 		{
 			FD_SET(g_clients[n], &fd_read);
 		}
-		int ret = select(sock + 1, &fd_read, &fd_write, &fd_except, NULL);
-		if (ret <= 0)
+		timeval t = {0,0};
+	//	SOCKET_ERROR
+		int ret = select(sock + 1, &fd_read, &fd_write, &fd_except, &t);
+		if (ret < 0)
 		{
 			std::cout << "selectÈÎÎñ½áÊø£¡ " << std::endl;
 			break;
 		}
-
+//		std::cout << "noblock" << std::endl;
 		if (FD_ISSET(sock, &fd_read))
 		{
 			FD_CLR(sock, &fd_read);
