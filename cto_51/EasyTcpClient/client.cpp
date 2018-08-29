@@ -1,7 +1,19 @@
-//V1.3
+ï»¿//V1.3
+#ifdef _WIN32
 #include<WinSock2.h>
 #include<Windows.h>
 #pragma comment(lib,"ws2_32.lib")
+#else
+#include<unistd.h>
+#include<arpa/inet.h>
+#include<string.h>
+
+#define SOCKET int
+#define INVALID_SOCKET  (SOCKET)(~0)
+#define SOCKET_ERROR            (-1)
+#endif // _WIN32
+
+
 #include<iostream>
 #include<thread>
 struct DataPackage
@@ -27,7 +39,7 @@ struct DataHeader
 
 };
 struct Login :public DataHeader
-{//Ò²¿ÉÒÔ°üº¬Ò»¸öDataHeader¶ÔÏó
+{//ä¹Ÿå¯ä»¥åŒ…å«ä¸€ä¸ªDataHeaderå¯¹è±¡
 	Login()
 	{
 		dataLength = sizeof(Login);
@@ -47,7 +59,7 @@ struct LoginResult :public DataHeader
 	int result;
 
 };
-//µÇ³ö²Ù×÷
+//ç™»å‡ºæ“ä½œ
 struct LogOut :public DataHeader
 {
 	LogOut()
@@ -58,7 +70,7 @@ struct LogOut :public DataHeader
 	char userName[32];
 
 };
-//µÇ³ö½á¹û
+//ç™»å‡ºç»“æœ
 struct LogOutResult :public DataHeader
 {
 	LogOutResult()
@@ -84,18 +96,18 @@ struct NewUserJoin :public DataHeader
 
 int process(SOCKET _clientSock)
 {
-	//½ÓÊÕ¿Í»§¶ËÊı¾İ
+	//æ¥æ”¶å®¢æˆ·ç«¯æ•°æ®
 	char szRecv[1024] = {};
 
 	int nLen = recv(_clientSock, szRecv, sizeof(DataHeader), 0);
 	DataHeader *header = (DataHeader *)szRecv;
 	if (nLen < 0)
 	{
-		std::cout << "Óë·şÎñÆ÷¶Ï¿ªÁ¬½Ó£º" << _clientSock << std::endl;
+		std::cout << "ä¸æœåŠ¡å™¨æ–­å¼€è¿æ¥ï¼š" << _clientSock << std::endl;
 		return -1;
 	}
 
-	std::cout << "SOCKET:" << _clientSock << " ½ÓÊÕµ½ÃüÁî£º " << header->cmd << " Êı¾İ³¤¶È£º" << header->dataLength << std::endl;
+	std::cout << "SOCKET:" << _clientSock << " æ¥æ”¶åˆ°å‘½ä»¤ï¼š " << header->cmd << " æ•°æ®é•¿åº¦ï¼š" << header->dataLength << std::endl;
 	switch (header->cmd)
 	{
 	case CMD_LOGIN_RESULT:
@@ -103,7 +115,7 @@ int process(SOCKET _clientSock)
 		LoginResult *result = NULL;
 		recv(_clientSock, szRecv + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
 		result = (LoginResult*)szRecv;
-		std::cout << _clientSock << " ÊÕµ½·şÎñÆ÷·µ»ØÏûÏ¢:" << "Login--->" << result->result << std::endl;
+		std::cout << _clientSock << " æ”¶åˆ°æœåŠ¡å™¨è¿”å›æ¶ˆæ¯:" << "Login--->" << result->result << std::endl;
 		
 
 	}
@@ -113,7 +125,7 @@ int process(SOCKET _clientSock)
 		LogOutResult *result = NULL;
 		recv(_clientSock, szRecv + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
 		result = (LogOutResult*)szRecv;
-		std::cout << _clientSock << " ÊÕµ½·şÎñÆ÷·µ»ØÏûÏ¢:" << "LogOut---> " << result->result << std::endl;
+		std::cout << _clientSock << " æ”¶åˆ°æœåŠ¡å™¨è¿”å›æ¶ˆæ¯:" << "LogOut---> " << result->result << std::endl;
 
 	}
 	break;
@@ -122,7 +134,7 @@ int process(SOCKET _clientSock)
 		NewUserJoin *result = NULL;
 		recv(_clientSock, szRecv + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
 		result = (NewUserJoin*)szRecv;
-		std::cout << _clientSock << " ÊÕµ½·şÎñÆ÷·µ»ØÏûÏ¢:" << "ÓĞĞÂÓÃ»§¼ÓÈë---> " << result->SocketId << std::endl;
+		std::cout << _clientSock << " æ”¶åˆ°æœåŠ¡å™¨è¿”å›æ¶ˆæ¯:" << "æœ‰æ–°ç”¨æˆ·åŠ å…¥---> " << result->SocketId << std::endl;
 	}
 	break;
 	default:
@@ -144,7 +156,7 @@ void cmdThread(SOCKET sock)
 		scanf("%s", cmd);
 		if (0 == strcmp(cmd, "exit"))
 		{
-			std::cout << "ÍË³ö" << std::endl;
+			std::cout << "é€€å‡º" << std::endl;
 			g_bRun = false;
 			break;
 		}
@@ -162,7 +174,7 @@ void cmdThread(SOCKET sock)
 			send(sock, (char *)&logout, sizeof(LogOut), 0);
 		}
 		else {
-			std::cout << "²»Ö§³ÖµÄÃüÁî" << std::endl;
+			std::cout << "ä¸æ”¯æŒçš„å‘½ä»¤" << std::endl;
 		}
 
 	}
@@ -171,15 +183,23 @@ void cmdThread(SOCKET sock)
 }
 int main()
 {
+#ifdef _WIN32
 	WORD ver = MAKEWORD(2, 2);
 	WSADATA dat;
 	WSAStartup(ver, &dat);
+#endif // _WIN32
+
+	
 
 	SOCKET sock = socket(AF_INET, SOCK_STREAM, 0);
 
 	sockaddr_in _sin = {};
 	_sin.sin_family = AF_INET;
-	_sin.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");
+#ifdef _WIN32
+	_sin.sin_addr.S_un.S_addr = inet_addr("192.168.3.41");
+#else
+	_sin.sin_addr.s_addr = inet_addr("192.168.3.41");
+#endif // _WIN32
 	_sin.sin_port = htons(7856);
 
 	if (SOCKET_ERROR == connect(sock, (sockaddr *)&_sin, sizeof(_sin)))
@@ -188,7 +208,7 @@ int main()
 	}
 	else
 	{
-		std::cout << "¿Í»§¶Ë" << sock << "Á¬½Ó·şÎñÆ÷³É¹¦" << std::endl;
+		std::cout << "å®¢æˆ·ç«¯" << sock << "è¿æ¥æœåŠ¡å™¨æˆåŠŸ" << std::endl;
 	}
 	std::thread t(cmdThread,sock);
 //	t.join();
@@ -209,7 +229,7 @@ int main()
 		int ret = select(sock + 1, &fdReads, &fdWrites, &fdExcepts, &t);
 		if (ret < 0)
 		{
-			std::cout << "ÈÎÎñ½áÊø" << std::endl;
+			std::cout << "ä»»åŠ¡ç»“æŸ" << std::endl;
 			break;
 		}
 		if(FD_ISSET(sock,&fdReads))
@@ -217,22 +237,32 @@ int main()
 			FD_CLR(sock, &fdReads);
 			if (-1 == process(sock))
 			{
-				std::cout << "ÈÎÎñ½áÊø" << std::endl;
+				std::cout << "ä»»åŠ¡ç»“æŸ" << std::endl;
 				break;
 			}
 		}
-		std::cout << "¿ÕÏĞÊ±¼ä´¦ÀíÆäËûÊı¾İ" << std::endl;
-		
+		std::cout << "ç©ºé—²æ—¶é—´å¤„ç†å…¶ä»–æ•°æ®" << std::endl;
+#ifdef _WIN32
 		Sleep(1000);
+#else
+		sleep(1);
+#endif // _WIN32
+
+		
 		/*char recvBuf[128] = {};
 		recv(sock, recvBuf, 128, 0);
 		DataPackage *pack = (DataPackage *)recvBuf;
 		std::cout << "from server:" << pack->age <<" "<<pack->name<< std::endl;*/
 	}
 //	getchar();
+#ifdef _WIN32
 	closesocket(sock);
-	getchar();
 	WSACleanup();
+#else
+	close(sock);
+#endif // _WIN32
+
+	
 	return 0;
 
 }
