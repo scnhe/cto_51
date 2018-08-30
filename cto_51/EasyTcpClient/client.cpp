@@ -196,7 +196,7 @@ int main()
 	sockaddr_in _sin = {};
 	_sin.sin_family = AF_INET;
 #ifdef _WIN32
-	_sin.sin_addr.S_un.S_addr = inet_addr("192.168.3.41");
+	_sin.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");
 #else
 	_sin.sin_addr.s_addr = inet_addr("192.168.3.41");
 #endif // _WIN32
