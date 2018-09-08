@@ -58,21 +58,19 @@ void cmdThread(EasyTcpClient *client)
 }
 int main()
 {
-	EasyTcpClient c1;
-	c1.Connect("192.168.3.90", 7856);
+	EasyTcpClient client,c2;
+	client.Connect("192.168.3.85", 7856);
 	
-	std::thread t1(cmdThread,&c1);	
+	std::thread t(cmdThread,&client);	
+
+	t.detach();
 	
-
-	t1.detach();
-
-	while (c1.isRun())
+	while (client.isRun())
 	{
-		c1.OnRun();
-		
+		client.OnRun();
 		
 	}
-	c1.Close();
+	client.Close();
 	
 	return 0;
 

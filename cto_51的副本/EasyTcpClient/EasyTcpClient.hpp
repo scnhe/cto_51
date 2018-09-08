@@ -126,7 +126,6 @@ public:
 		if (nLen <= 0)
 		{
 			std::cout << "与服务器断开连接" << std::endl;
-			Close();
 			return -1;
 		}
 		recv(_cSock, szRecv + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
