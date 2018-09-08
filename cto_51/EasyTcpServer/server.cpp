@@ -266,7 +266,7 @@ int main()
 			}
 		}
 #endif
-		std::cout << "处理其他业务" << std::endl;
+	//	std::cout << "处理其他业务" << std::endl;
 
 		////处理请求
 		//if (0 == strcmp(recvBuf,"getName"))
