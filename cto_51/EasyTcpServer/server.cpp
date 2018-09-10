@@ -23,7 +23,7 @@ int main()
 	EasyTcpServer s;
 	s.InitSocket();
 	s.Bind(nullptr,7856);
-	s.Listen(5);
+	s.Listen(10);
 	while (s.isRun())
 	{
 		s.OnRun();

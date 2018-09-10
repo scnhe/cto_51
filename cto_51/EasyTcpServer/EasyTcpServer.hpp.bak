@@ -297,8 +297,7 @@ public:
 			if (ret < 0)
 			{
 				std::cout << "select任务结束！ " << std::endl;
-				Close();
-				return false;
+				return 0;
 			}
 			//        std::cout << "noblock" << std::endl;
 			if (FD_ISSET(_sock, &fd_read))
@@ -306,7 +305,7 @@ public:
 				FD_CLR(_sock, &fd_read);
 				Accept();
 			}
-
+#ifdef _WIN32
 				for (int n = 0; n < fd_read.fd_count; n++)
 				{
 					if (-1 == RecvData(fd_read.fd_array[n]))
@@ -320,15 +319,30 @@ public:
 					}
 
 				}
+#else
+				for (int n = g_clients.size() - 1; n >= 0; n--)
+				{
+					if (FD_ISSET(g_clients[n], &fd_read))
+					{
+						if (-1 == RecvData(g_clients[n]))
+						{
+							auto iter = g_clients.begin();
+							if (iter != g_clients.end())
+							{
+								g_clients.erase(iter);
+							}
 
+						}
+					}
+				}
+#endif
 
 			
 
 			//	std::cout << "空闲时间处理其他数据" << std::endl;
-			return true;
 		}
 
-		return false;
+		return 0;
 
 	}
 	//是否工作中

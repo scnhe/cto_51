@@ -29,14 +29,10 @@ public:
 	}
 	virtual ~EasyTcpClient()
 	{
-		if (INVALID_SOCKET != _sock)
-		{
-			Close();
-		}
-	
+		Close();
 	}
 	//初始化socket
-	int InitSocket()
+	void InitSocket()
 	{
 		//启动Win socket 2.x 环境
 #ifdef _WIN32
@@ -53,13 +49,11 @@ public:
 		if (INVALID_SOCKET == _sock)
 		{
 			std::cout << "错误，建立Socket失败。。。" << std::endl;
-			return -1;
+		//	return -1;
 		}
 		else {
 			std::cout << "建立Socket成功。。。" << std::endl;
 		}
-		return 0;
-
 	}
 	//连接服务器
 	int Connect(const char *ip,unsigned short port)
@@ -109,7 +103,7 @@ public:
 	{
 		if (isRun() && header)
 		{
-			return send(_sock, (const char *)header, header->dataLength - sizeof(DataHeader), 0);
+			return send(_sock, (const char *)header, header->dataLength, 0);
 		}
 		else
 		{
@@ -125,9 +119,12 @@ public:
 		DataHeader *header = (DataHeader *)szRecv;
 		if (nLen <= 0)
 		{
-			std::cout << "与服务器断开连接" << std::endl;
-			Close();
+			std::cout << "与服务器断开连接" << nLen<<std::endl;
+		//	Close();
 			return -1;
+		}
+		else {
+			std::cout << "Data Length is " << nLen << std::endl;
 		}
 		recv(_cSock, szRecv + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
 		OnNetMsg( header);
@@ -141,7 +138,7 @@ public:
 		case CMD_LOGIN_RESULT:
 		{
 			LoginResult *result = (LoginResult *)header;
-			std::cout << _sock << " 收到服务器返回消息:" << "Login--->" << result->result << std::endl;
+			std::cout << _sock << " 收到服务器返回消息:" << "CMD_LOGIN_RESULT" << result->result << "数据长度："<<result->dataLength<<std::endl;
 
 
 		}
@@ -149,14 +146,14 @@ public:
 		case CMD_LOGOUT_RESULT:
 		{
 			LogOutResult *result = (LogOutResult *)header;
-			std::cout << _sock << " 收到服务器返回消息:" << "LogOut---> " << result->result << std::endl;
+			std::cout << _sock << " 收到服务器返回消息:" << "CMD_LOGOUT_RESULT " << result->result << "数据长度：" << result->dataLength<<std::endl;
 
 		}
 		break;
 		case CMD_NEW_USER_JOIN:
 		{
 			NewUserJoin *result = (NewUserJoin *)header;
-			std::cout << _sock << " 收到服务器返回消息:" << "有新用户加入---> " << result->SocketId << std::endl;
+			std::cout << _sock << " 收到服务器返回消息:" << "有新用户加入---> " << result->SocketId << result->dataLength << std::endl;
 		}
 		break;
 		default:
@@ -188,7 +185,9 @@ public:
 			int ret = select(_sock + 1, &fdReads, &fdWrites, &fdExcepts, &t);
 			if (ret < 0)
 			{
-				std::cout << "任务结束" << std::endl;
+				std::cout << "任务结束1" << std::endl;
+				Close();
+				return false;
 				//	break;
 			}
 			if (FD_ISSET(_sock, &fdReads))
@@ -196,14 +195,17 @@ public:
 				FD_CLR(_sock, &fdReads);
 				if (-1 == RecvData(_sock))
 				{
-					std::cout << "任务结束" << std::endl;
+					std::cout << "任务结束1" << std::endl;
+					Close();
+					return false;
 					//	break;
 				}
 			}
+			return true;
 		//	std::cout << "空闲时间处理其他数据" << std::endl;
 		}
 		
-		return 0;
+		return false;
 	
 	}
 	bool isRun()

@@ -1,19 +1,4 @@
-﻿//V1.3
-#ifdef _WIN32
-#include<WinSock2.h>
-#include<Windows.h>
-#pragma comment(lib,"ws2_32.lib")
-#else
-#include<unistd.h>
-#include<arpa/inet.h>
-#include<string.h>
-
-#define SOCKET int
-#define INVALID_SOCKET  (SOCKET)(~0)
-#define SOCKET_ERROR            (-1)
-#endif // _WIN32
-
-
+﻿
 #include<iostream>
 #include<thread>
 
@@ -24,7 +9,8 @@ void cmdThread(EasyTcpClient *client)
 {
 	while (true)
 	{
-		char cmd[128] = {};
+		
+		char cmd[32];
 		scanf("%s", cmd);
 		if (0 == strcmp(cmd, "exit"))
 		{
@@ -59,22 +45,25 @@ void cmdThread(EasyTcpClient *client)
 int main()
 {
 	EasyTcpClient c1;
-	c1.Connect("192.168.3.90", 7856);
+	c1.Connect("192.168.3.3", 7856);
 	
 	std::thread t1(cmdThread,&c1);	
-	
-
 	t1.detach();
-
+	Login log;
+	strcpy(log.userName, "ccc");
+	strcpy(log.passWord, "ddd");
 	while (c1.isRun())
 	{
 		c1.OnRun();
+		c1.SendData(&log);
+		//Sleep(10);
 		
 		
 	}
 	c1.Close();
 	
 	return 0;
+//	int fpid = fork();
 
 }
 
