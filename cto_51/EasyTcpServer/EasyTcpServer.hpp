@@ -31,10 +31,10 @@ public:
 	}
 	virtual ~EasyTcpServer()
 	{
-		if (INVALID_SOCKET != _sock)
-		{
+		//if (INVALID_SOCKET != _sock)
+		//{
 			Close();
-		}
+	//	}
 
 	}
 	//初始化socket
@@ -129,7 +129,7 @@ public:
 	int Accept()
 	{
 		sockaddr_in _client = {};
-		int nAddrLen = sizeof(_client);// = 5;
+		int nAddrLen = sizeof(sockaddr_in);// = 5;
 		char msgBuf[] = "I'm server";
 		SOCKET _clientSock = INVALID_SOCKET;
 #ifdef _WIN32
@@ -180,8 +180,134 @@ public:
 #endif
 		}
 
-		_sock = INVALID_SOCKET;
+	//	_sock = INVALID_SOCKET;
 	}
+	//处理数据
+	bool OnRun()
+	{
+		if (isRun())
+		{
+			fd_set fd_read;
+			fd_set fd_write;
+			fd_set fd_except;
+			FD_ZERO(&fd_read);
+			FD_ZERO(&fd_write);
+			FD_ZERO(&fd_except);
+
+			FD_SET(_sock, &fd_read);
+			FD_SET(_sock, &fd_write);
+			FD_SET(_sock, &fd_except);
+			SOCKET maxSock = _sock;
+			for (int n = g_clients.size() - 1; n >= 0; n--)
+			{
+				FD_SET(g_clients[n], &fd_read);//超过64个无法加入到set中
+											   //		std::cout << "fd_set num is " << fd_read.fd_count << std::endl;
+				if (maxSock<g_clients[n])
+				{
+					maxSock = g_clients[n];
+				}
+
+			}
+			timeval t = { 1,0 };
+			//    SOCKET_ERROR
+
+			int ret = select(maxSock + 1, &fd_read, &fd_write, &fd_except, &t);
+			if (ret < 0)
+			{
+				std::cout << "select任务结束！ " << std::endl;
+				Close();
+				return false;
+			}
+			//        std::cout << "noblock" << std::endl;
+			if (FD_ISSET(_sock, &fd_read))
+			{
+				FD_CLR(_sock, &fd_read);
+				Accept();
+			}
+
+
+			for (int n = (int)g_clients.size() - 1; n >= 0; n--)
+			{
+				if (FD_ISSET(g_clients[n], &fd_read))
+				{
+					if (-1 == RecvData(g_clients[n]))
+					{
+						auto iter = g_clients.begin() + n;//std::vector<SOCKET>::iterator
+						if (iter != g_clients.end())
+						{
+							g_clients.erase(iter);
+						}
+					}
+				}
+			}
+			//	std::cout << "空闲时间处理其他数据" << std::endl;
+			return true;
+		}
+
+		return false;
+
+	}
+
+	//是否工作中
+	bool isRun()
+	{
+		return _sock != INVALID_SOCKET;
+	}
+
+	//接收数据,处理粘包
+	int RecvData(SOCKET _cSock)
+	{
+		char szRecv[4096] = {};
+		int nLen = (int)recv(_cSock, szRecv, sizeof(DataHeader), 0);
+		DataHeader *header = (DataHeader *)szRecv;
+		if (nLen <= 0)
+		{
+			std::cout << "与客户端" << _cSock << "断开连接" << std::endl;
+			//	Close();
+			return -1;
+		}
+		recv(_cSock, szRecv + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
+		OnNetMsg(_cSock, header);
+		return 0;
+	}
+	//响应网络消息
+	virtual void OnNetMsg(SOCKET _cSock, DataHeader *header)
+	{
+		switch (header->cmd)
+		{
+		case CMD_LOGIN:
+		{
+			Login *login = NULL;
+			login = (Login*)header;
+			std::cout << _cSock << " 接收到客户端命令 CMD_LOGIN " << "UserName: " << login->userName << " Password:" << login->passWord << " 数据长度：" << login->dataLength << std::endl;
+
+			LoginResult result = {};
+			result.result = 1;
+			send(_cSock, (char *)&result, sizeof(LoginResult), 0);
+
+		}
+		break;
+		case CMD_LOGOUT:
+		{
+			LogOut *out = NULL;
+			out = (LogOut*)header;
+			std::cout << _cSock << " 接收到客户端退出命令:" << "UserName: " << out->userName << std::endl;
+			LogOutResult result = {};
+			result.result = 2;
+			send(_cSock, (char *)&result, sizeof(LogOutResult), 0);
+		}
+		break;
+		default:
+		{
+			header->cmd = CMD_ERROR;
+			header->dataLength = 0;
+			send(_cSock, (char *)header, sizeof(DataHeader), 0);
+		}
+		break;
+		}
+
+	}
+
 	//发送指定Socket数据
 	int SendData(SOCKET _cSock,DataHeader *header)
 	{
@@ -210,132 +336,10 @@ public:
 			return SOCKET_ERROR;
 		}
 	}
-	//接收数据,处理粘包
-	int RecvData(SOCKET _cSock)
-	{
-		char szRecv[4096] = {};
-		int nLen = (int)recv(_cSock, szRecv, sizeof(DataHeader), 0);
-		DataHeader *header = (DataHeader *)szRecv;
-		if (nLen <= 0)
-		{
-			std::cout << "与客户端"<<_cSock<<"断开连接" << std::endl;
-		//	Close();
-			return -1;
-		}
-		recv(_cSock, szRecv + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
-		OnNetMsg(_cSock,header);
-		return 0;
-	}
-	//响应网络消息
-	virtual void OnNetMsg(SOCKET _cSock,DataHeader *header)
-	{
-		switch (header->cmd)
-		{
-		case CMD_LOGIN:
-		{
-			Login *login = NULL;			
-			login = (Login*)header;
-			std::cout << _cSock << " 接收到客户端命令 CMD_LOGIN " << "UserName: " << login->userName <<" Password:"<<login->passWord<<" 数据长度："<<login->dataLength<<std::endl;
-			
-			LoginResult result = {};
-			result.result = 1;			
-			send(_cSock, (char *)&result, sizeof(LoginResult), 0);
 
-		}
-		break;
-		case CMD_LOGOUT:
-		{
-			LogOut *out = NULL;
-			out = (LogOut*)header;
-			std::cout << _cSock << " 接收到客户端退出命令:" << "UserName: " << out->userName << std::endl;
-			LogOutResult result = {};
-			result.result = 2;
-			send(_cSock, (char *)&result, sizeof(LogOutResult), 0);
-		}
-		break;
-		default:
-		{
-			header->cmd = CMD_ERROR;
-			header->dataLength = 0;
-			send(_cSock, (char *)header, sizeof(DataHeader), 0);
-		}
-		break;
-		}
+	
 
-	}
-
-	//处理数据
-	bool OnRun()
-	{
-		if (isRun())
-		{
-			fd_set fd_read;
-			fd_set fd_write;
-			fd_set fd_except;
-			FD_ZERO(&fd_read);
-			FD_ZERO(&fd_write);
-			FD_ZERO(&fd_except);
-
-			FD_SET(_sock, &fd_read);
-			FD_SET(_sock, &fd_write);
-			FD_SET(_sock, &fd_except);
-			SOCKET maxSock = _sock;
-			for (int n = g_clients.size() - 1; n >= 0; n--)
-			{
-				FD_SET(g_clients[n], &fd_read);//超过64个无法加入到set中
-		//		std::cout << "fd_set num is " << fd_read.fd_count << std::endl;
-				if (maxSock<g_clients[n])
-				{
-					maxSock = g_clients[n];
-				}
-
-			}
-			timeval t = { 1,0 };
-			//    SOCKET_ERROR
-
-			int ret = select(maxSock + 1, &fd_read, &fd_write, &fd_except, &t);
-			if (ret < 0)
-			{
-				std::cout << "select任务结束！ " << std::endl;
-				Close();
-				return false;
-			}
-			//        std::cout << "noblock" << std::endl;
-			if (FD_ISSET(_sock, &fd_read))
-			{
-				FD_CLR(_sock, &fd_read);
-				Accept();
-			}
-
-				for (int n = 0; n < fd_read.fd_count; n++)
-				{
-					if (-1 == RecvData(fd_read.fd_array[n]))
-					{
-						auto iter = std::find(g_clients.begin(), g_clients.end(), fd_read.fd_array[n]);
-						if (iter != g_clients.end())
-						{
-							g_clients.erase(iter);
-						}
-
-					}
-
-				}
-
-
-			
-
-			//	std::cout << "空闲时间处理其他数据" << std::endl;
-			return true;
-		}
-
-		return false;
-
-	}
-	//是否工作中
-	bool isRun()
-	{
-		return _sock != INVALID_SOCKET;
-	}
+	
 
 private:
 

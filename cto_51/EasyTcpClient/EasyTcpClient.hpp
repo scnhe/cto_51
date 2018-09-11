@@ -89,26 +89,67 @@ public:
 
 	void Close()
 	{
-		//关闭Win sock 2.x环境
+		if (_sock != INVALID_SOCKET)
+		{
+			//关闭Win sock 2.x环境
 #ifdef _WIN32
-		closesocket(_sock);
-		WSACleanup();
+			closesocket(_sock);
+			WSACleanup();
 #else
-		close(_sock);
+			close(_sock);
 #endif // _WIN32
-		_sock = INVALID_SOCKET;
-	}
-	//发送数据
-	int SendData(DataHeader *header)
-	{
-		if (isRun() && header)
-		{
-			return send(_sock, (const char *)header, header->dataLength, 0);
+			_sock = INVALID_SOCKET;
+
 		}
-		else
+		
+		
+	}
+
+	//处理数据
+	bool OnRun()
+	{
+		if (isRun())
 		{
-			return SOCKET_ERROR;
-		}		
+			fd_set fdReads;
+			fd_set fdWrites;
+			fd_set fdExcepts;
+
+			FD_ZERO(&fdReads);
+			FD_ZERO(&fdWrites);
+			FD_ZERO(&fdExcepts);
+
+			FD_SET(_sock, &fdReads);
+			timeval t = { 0,0 };
+			int ret = select(_sock + 1, &fdReads, &fdWrites, &fdExcepts, &t);
+			if (ret < 0)
+			{
+				std::cout << "任务结束1" << std::endl;
+				Close();
+				return false;
+				//	break;
+			}
+			if (FD_ISSET(_sock, &fdReads))
+			{
+				FD_CLR(_sock, &fdReads);
+				if (-1 == RecvData(_sock))
+				{
+					std::cout << "任务结束2" << std::endl;
+					Close();
+					return false;
+					//	break;
+				}
+			}
+			return true;
+			//	std::cout << "空闲时间处理其他数据" << std::endl;
+		}
+
+		return false;
+
+	}
+
+	bool isRun()
+	{
+		return _sock != INVALID_SOCKET;
 	}
 
 	//接收数据,处理粘包
@@ -167,51 +208,20 @@ public:
 	
 	}
 
-	//处理数据
-	bool OnRun() 
-	{
-		if (isRun())
-		{
-			fd_set fdReads;
-			fd_set fdWrites;
-			fd_set fdExcepts;
-
-			FD_ZERO(&fdReads);
-			FD_ZERO(&fdWrites);
-			FD_ZERO(&fdExcepts);
-
-			FD_SET(_sock, &fdReads);
-			timeval t = { 0,0 };
-			int ret = select(_sock + 1, &fdReads, &fdWrites, &fdExcepts, &t);
-			if (ret < 0)
-			{
-				std::cout << "任务结束1" << std::endl;
-				Close();
-				return false;
-				//	break;
-			}
-			if (FD_ISSET(_sock, &fdReads))
-			{
-				FD_CLR(_sock, &fdReads);
-				if (-1 == RecvData(_sock))
-				{
-					std::cout << "任务结束1" << std::endl;
-					Close();
-					return false;
-					//	break;
-				}
-			}
-			return true;
-		//	std::cout << "空闲时间处理其他数据" << std::endl;
-		}
-		
-		return false;
 	
-	}
-	bool isRun()
+	//发送数据
+	int SendData(DataHeader *header)
 	{
-		return _sock != INVALID_SOCKET;
+		if (isRun() && header)
+		{
+			return send(_sock, (const char *)header, header->dataLength, 0);
+		}
+		else
+		{
+			return SOCKET_ERROR;
+		}
 	}
+	
 
 private:
 
