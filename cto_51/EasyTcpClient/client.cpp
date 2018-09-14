@@ -5,7 +5,7 @@
 #include"EasyTcpClient.hpp"
 
 bool g_bRun = true;
-void cmdThread(EasyTcpClient *client)
+void cmdThread()
 {
 	while (true)
 	{
@@ -15,7 +15,7 @@ void cmdThread(EasyTcpClient *client)
 		if (0 == strcmp(cmd, "exit"))
 		{
 			std::cout << "退出" << std::endl;
-			client->Close();
+		//	client->Close();
 			g_bRun = false;
 			break;
 		}
@@ -24,14 +24,14 @@ void cmdThread(EasyTcpClient *client)
 			Login login;
 			strcpy(login.userName, "liu");
 			strcpy(login.passWord, "12345");
-			client->SendData(&login);
+		//	client->SendData(&login);
 			//csend(sock, (char *)&login, sizeof(Login), 0);
 		}
 		else if (0 == strcmp(cmd, "logout"))
 		{
 			LogOut logout;// = { "liu" };  
 			strcpy(logout.userName, "liu");
-			client->SendData(&logout);
+		//	client->SendData(&logout);
 			//send(sock, (char *)&logout, sizeof(LogOut), 0);
 		}
 		else {
@@ -44,22 +44,34 @@ void cmdThread(EasyTcpClient *client)
 }
 int main()
 {
-	EasyTcpClient c1;
-	c1.Connect("192.168.3.85", 7856);
+	const int cCount = 100;
+	EasyTcpClient *c1[cCount];
+	for(int i = 0;i<cCount;i++)
+	{ 
+		c1[i] = new EasyTcpClient;
+		c1[i]->Connect("192.168.3.90", 7856);
+	}
 	
-	std::thread t1(cmdThread,&c1);	
+	int a = sizeof(EasyTcpClient);
+	std::thread t1(cmdThread);
 	t1.detach();
 	Login log;
 	strcpy(log.userName, "ccc");
 	strcpy(log.passWord, "ddd");
-	while (c1.isRun())
+	while (g_bRun)
 	{
-		c1.OnRun();
-		c1.SendData(&log);	
-		Sleep(10);
+		for (int i = 0; i < cCount; i++)
+		{
+			c1[i]->SendData(&log);
+			c1[i]->OnRun();
+			
+		}
+			
+		//Sleep(10);
 		
 	}
-	c1.Close();
+	for (int i = 0; i<cCount; i++)
+	c1[i]->Close();
 	
 	return 0;
 //	int fpid = fork();

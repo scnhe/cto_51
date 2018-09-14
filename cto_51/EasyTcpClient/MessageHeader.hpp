@@ -18,6 +18,11 @@ enum CMD
 //msg header
 struct DataHeader
 {
+	DataHeader()
+	{
+		dataLength = sizeof(DataHeader);
+		cmd = CMD_ERROR;
+	}
 	short dataLength;
 	short cmd;
 
@@ -31,7 +36,7 @@ struct Login :public DataHeader
 	}
 	char userName[32];
 	char passWord[32];
-	char data[1024];
+	char data[932];
 
 };
 struct LoginResult :public DataHeader
@@ -42,6 +47,7 @@ struct LoginResult :public DataHeader
 		cmd = CMD_LOGIN_RESULT;
 	}
 	int result;
+	char data[992];
 
 };
 //µÇ³ö²Ù×÷
@@ -78,5 +84,5 @@ struct NewUserJoin :public DataHeader
 	int SocketId;
 
 };
-
+#define RECV_BUFF_SIZE 10240
 #endif // !_MessageHeader_HPP

@@ -18,10 +18,43 @@
 
 #include<iostream>
 #include<vector>
+
+class  ClientSocket 
+{
+public:
+	ClientSocket(SOCKET sockfd = INVALID_SOCKET)
+	{
+		_sockfd = sockfd;
+		memset(_szMsgBuf, 0, sizeof*_szMsgBuf);
+	}
+	char *msgBuf()
+	{
+		return _szMsgBuf;
+	}
+	int getLast()
+	{
+		return _lastPos;
+	}
+	void setLastPos(int pos)
+	{
+		_lastPos = pos;
+	}
+	SOCKET sockfd()
+	{
+		return _sockfd;
+	}
+private:
+	
+	SOCKET _sockfd;// fd_set file descr set
+	char _szMsgBuf[RECV_BUFF_SIZE * 10] = {};
+	//接收数据,处理粘包
+	//消息缓冲区数据尾部位置
+	int _lastPos = 0;
+};
 class EasyTcpServer
 {
 	SOCKET _sock;
-	std::vector<SOCKET>g_clients;
+	std::vector<ClientSocket *>_clients;
 public:
 	EasyTcpServer()
 	{
@@ -130,7 +163,6 @@ public:
 	{
 		sockaddr_in _client = {};
 		int nAddrLen = sizeof(sockaddr_in);// = 5;
-		char msgBuf[] = "I'm server";
 		SOCKET _clientSock = INVALID_SOCKET;
 #ifdef _WIN32
 		_clientSock = accept(_sock, (sockaddr *)&_client, &nAddrLen);
@@ -147,7 +179,7 @@ public:
 			NewUserJoin userJoin;
 			userJoin.SocketId = _clientSock;
 			SendDataToAll(&userJoin);
-			g_clients.push_back(_clientSock);
+			_clients.push_back(new ClientSocket(_clientSock));
 		}
 		
 		return _clientSock;
@@ -162,18 +194,20 @@ public:
 		if (_sock != INVALID_SOCKET)
 		{
 #ifdef _WIN32
-			for (size_t n = g_clients.size() - 1; n >= 0; n--)
+			for (int n = _clients.size() - 1; n >= 0; n--)
 			{
-				closesocket(g_clients[n]);
+				closesocket(_clients[n]->sockfd());
+				delete _clients[n];
 			}
 
 			closesocket(_sock);
 
 			WSACleanup();
 #else
-			for (int n = g_clients.size() - 1; n >= 0; n--)
+			for (int n = _clients.size() - 1; n >= 0; n--)
 			{
-				close(g_clients[n]);
+				close(_clients[n]->sockfd());
+				delete _clients[n];
 			}
 			close(_sock);
 
@@ -183,6 +217,7 @@ public:
 	//	_sock = INVALID_SOCKET;
 	}
 	//处理数据
+	int ncount = 0;
 	bool OnRun()
 	{
 		if (isRun())
@@ -198,13 +233,13 @@ public:
 			FD_SET(_sock, &fd_write);
 			FD_SET(_sock, &fd_except);
 			SOCKET maxSock = _sock;
-			for (int n = g_clients.size() - 1; n >= 0; n--)
+			for (int n = _clients.size() - 1; n >= 0; n--)
 			{
-				FD_SET(g_clients[n], &fd_read);//超过64个无法加入到set中
+				FD_SET(_clients[n]->sockfd(), &fd_read);//超过64个无法加入到set中
 											   //		std::cout << "fd_set num is " << fd_read.fd_count << std::endl;
-				if (maxSock<g_clients[n])
+				if (maxSock<_clients[n]->sockfd())
 				{
-					maxSock = g_clients[n];
+					maxSock = _clients[n]->sockfd();
 				}
 
 			}
@@ -226,16 +261,17 @@ public:
 			}
 
 
-			for (int n = (int)g_clients.size() - 1; n >= 0; n--)
+			for (int n = (int)_clients.size() - 1; n >= 0; n--)
 			{
-				if (FD_ISSET(g_clients[n], &fd_read))
+				if (FD_ISSET(_clients[n]->sockfd(), &fd_read))
 				{
-					if (-1 == RecvData(g_clients[n]))
+					if (-1 == RecvData(_clients[n]))
 					{
-						auto iter = g_clients.begin() + n;//std::vector<SOCKET>::iterator
-						if (iter != g_clients.end())
+						auto iter = _clients.begin() + n;//std::vector<SOCKET>::iterator
+						if (iter != _clients.end())
 						{
-							g_clients.erase(iter);
+							delete _clients[n];
+							_clients.erase(iter);
 						}
 					}
 				}
@@ -254,20 +290,39 @@ public:
 		return _sock != INVALID_SOCKET;
 	}
 
+	char _szRecv[RECV_BUFF_SIZE] = {};//第二缓冲区，双缓冲
 	//接收数据,处理粘包
-	int RecvData(SOCKET _cSock)
+	int RecvData(ClientSocket  *pClient)
 	{
-		char szRecv[4096] = {};
-		int nLen = (int)recv(_cSock, szRecv, sizeof(DataHeader), 0);
-		DataHeader *header = (DataHeader *)szRecv;
-		if (nLen <= 0)
+		
+		int nLen = (int)recv(pClient->sockfd(), _szRecv, RECV_BUFF_SIZE, 0);
+		//
+		if (nLen < 0)
 		{
-			std::cout << "与客户端" << _cSock << "断开连接" << std::endl;
-			//	Close();
+			std::cout << "客户端退出连接 " << pClient->sockfd() << std::endl;
 			return -1;
 		}
-		recv(_cSock, szRecv + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
-		OnNetMsg(_cSock, header);
+		//将收取的数据拷贝到消息缓冲区
+		memcpy(pClient->msgBuf() + pClient->getLast(), _szRecv, nLen);
+		//	DataHeader *header = (DataHeader *)_szMsgBuf;
+		pClient->setLastPos(pClient->getLast() + nLen);
+		while (pClient->getLast() >= sizeof(DataHeader))
+		{
+			DataHeader *header = (DataHeader *)pClient->msgBuf();
+			//判断消息缓冲区的数据长度大于数据长度
+			if (pClient->getLast() >= header->dataLength)
+			{
+				//剩余数据长度
+				int nSize = pClient->getLast() - header->dataLength;
+				OnNetMsg(pClient->sockfd(),header);
+				//消息缓冲区数据迁移
+				memcpy(pClient->msgBuf(), pClient->msgBuf() + header->dataLength, nSize);
+				pClient->setLastPos(nSize);// = nSize;
+			}
+			else {//剩余数据不足一个完整消息
+				break;
+			}
+		}
 		return 0;
 	}
 	//响应网络消息
@@ -279,11 +334,12 @@ public:
 		{
 			Login *login = NULL;
 			login = (Login*)header;
-			std::cout << _cSock << " 接收到客户端命令 CMD_LOGIN " << "UserName: " << login->userName << " Password:" << login->passWord << " 数据长度：" << login->dataLength << std::endl;
+		//	std::cout << _cSock << " 接收到客户端命令 CMD_LOGIN " << "UserName: " << login->userName << " Password:" << login->passWord << " 数据长度：" << login->dataLength << std::endl;
 
 			LoginResult result = {};
 			result.result = 1;
-			send(_cSock, (char *)&result, sizeof(LoginResult), 0);
+			SendData(_cSock,&result);
+		//	send(_cSock, (char *)&result, sizeof(LoginResult), 0);
 
 		}
 		break;
@@ -291,17 +347,17 @@ public:
 		{
 			LogOut *out = NULL;
 			out = (LogOut*)header;
-			std::cout << _cSock << " 接收到客户端退出命令:" << "UserName: " << out->userName << std::endl;
+		//	std::cout << _cSock << " 接收到客户端退出命令:" << "UserName: " << out->userName << std::endl;
 			LogOutResult result = {};
 			result.result = 2;
-			send(_cSock, (char *)&result, sizeof(LogOutResult), 0);
+			SendData(_cSock, &result);
 		}
-		break;
+		break;		
 		default:
 		{
-			header->cmd = CMD_ERROR;
-			header->dataLength = 0;
-			send(_cSock, (char *)header, sizeof(DataHeader), 0);
+			std::cout << _cSock << "服务端收到客户端未定义消息:" << header->dataLength << std::endl;
+			DataHeader h;
+		//	send(_cSock, (char *)&h, sizeof(DataHeader), 0);
 		}
 		break;
 		}
@@ -325,9 +381,9 @@ public:
 	{
 		if (isRun() && header)
 		{
-			for (int n = g_clients.size() - 1; n >= 0; n--)
+			for (int n = _clients.size() - 1; n >= 0; n--)
 			{
-				SendData(g_clients[n], header);
+				SendData(_clients[n]->sockfd(), header);
 			}
             return 0;
 		}

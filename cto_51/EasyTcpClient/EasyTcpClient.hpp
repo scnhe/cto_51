@@ -106,6 +106,7 @@ public:
 	}
 
 	//处理数据
+	int ncount = 0;
 	bool OnRun()
 	{
 		if (isRun())
@@ -121,6 +122,8 @@ public:
 			FD_SET(_sock, &fdReads);
 			timeval t = { 0,0 };
 			int ret = select(_sock + 1, &fdReads, &fdWrites, &fdExcepts, &t);
+			
+//			std::cout << " select ret = " << ret << " count = " << ncount++ << std::endl;
 			if (ret < 0)
 			{
 				std::cout << "任务结束1" << std::endl;
@@ -151,24 +154,50 @@ public:
 	{
 		return _sock != INVALID_SOCKET;
 	}
+	//接收缓冲区
 
+	char _szRecv[RECV_BUFF_SIZE] = {};
+	//第二缓冲区，消息缓冲区
+	char _szMsgBuf[RECV_BUFF_SIZE * 10] = {};
 	//接收数据,处理粘包
+	//消息缓冲区数据尾部位置
+	int _lastPos = 0;
 	int RecvData(SOCKET _cSock)
 	{
-		char szRecv[4096] = {};
-		int nLen = (int)recv(_cSock, szRecv, sizeof(DataHeader), 0);
-		DataHeader *header = (DataHeader *)szRecv;
+		
+		int nLen = (int)recv(_cSock, _szRecv, RECV_BUFF_SIZE, 0);
+//		std::cout << "Recv Data from srv is " << nLen << std::endl;
+//		return 0;
+		
 		if (nLen <= 0)
 		{
 			std::cout << "与服务器断开连接" << nLen<<std::endl;
 		//	Close();
 			return -1;
 		}
-		else {
-			std::cout << "Data Length is " << nLen << std::endl;
+		//将收取的数据拷贝到消息缓冲区
+		memcpy(_szMsgBuf+_lastPos, _szRecv, nLen);
+	//	DataHeader *header = (DataHeader *)_szMsgBuf;
+		_lastPos +=nLen;
+		while(_lastPos >= sizeof(DataHeader))
+		{
+			DataHeader *header = (DataHeader *)_szMsgBuf;
+			//判断消息缓冲区的数据长度大于数据长度
+			if (_lastPos >= header->dataLength)
+			{
+				//剩余数据长度
+				int nSize = _lastPos - header->dataLength;
+				OnNetMsg(header);
+				//消息缓冲区数据迁移
+				memcpy(_szMsgBuf, _szMsgBuf+header->dataLength, nSize);
+				_lastPos = nSize;
+			}
+			else {//剩余数据不足一个完整消息
+				break;
+			}
 		}
-		recv(_cSock, szRecv + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
-		OnNetMsg( header);
+//		recv(_cSock, _szRecv + sizeof(DataHeader), header->dataLength - sizeof(DataHeader), 0);
+//		OnNetMsg( header);
 		return 0;
 	}
 	//响应网络消息
@@ -179,7 +208,7 @@ public:
 		case CMD_LOGIN_RESULT:
 		{
 			LoginResult *result = (LoginResult *)header;
-			std::cout << _sock << " 收到服务器返回消息:" << "CMD_LOGIN_RESULT" << result->result << "数据长度："<<result->dataLength<<std::endl;
+		//	std::cout << _sock << " 收到服务器返回消息:" << "CMD_LOGIN_RESULT" << result->result << "数据长度："<<result->dataLength<<std::endl;
 
 
 		}
@@ -187,21 +216,24 @@ public:
 		case CMD_LOGOUT_RESULT:
 		{
 			LogOutResult *result = (LogOutResult *)header;
-			std::cout << _sock << " 收到服务器返回消息:" << "CMD_LOGOUT_RESULT " << result->result << "数据长度：" << result->dataLength<<std::endl;
+		//	std::cout << _sock << " 收到服务器返回消息:" << "CMD_LOGOUT_RESULT " << result->result << "数据长度：" << result->dataLength<<std::endl;
 
 		}
 		break;
 		case CMD_NEW_USER_JOIN:
 		{
 			NewUserJoin *result = (NewUserJoin *)header;
-			std::cout << _sock << " 收到服务器返回消息:" << "有新用户加入---> " << result->SocketId << result->dataLength << std::endl;
+		//	std::cout << _sock << " 收到服务器返回消息:" << "有新用户加入---> " << result->SocketId << result->dataLength << std::endl;
+		}
+		break;
+		case CMD_ERROR:
+		{
+			std::cout << "收到错误消息 " << _sock << " 数据长度为 " << header->dataLength << std::endl;
 		}
 		break;
 		default:
 		{
-			header->cmd = CMD_ERROR;
-			header->dataLength = 0;
-			send(_sock, (char *)header, sizeof(DataHeader), 0);
+			std::cout << "收到未定义类型消息,消息长度为：" << header->dataLength<<std::endl;
 		}
 		break;
 		}
