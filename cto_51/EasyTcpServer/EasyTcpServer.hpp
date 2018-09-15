@@ -2,10 +2,16 @@
 #define _EASYTCPSERVER_HPP
 
 #ifdef _WIN32
+
+#ifndef FD_SETSIZE//在server.cpp中提前引入windsock2.h 导致这里的宏定义失效
+#define FD_SETSIZE 10024
+#endif // !FD_SETSIZE
+
 #include<WinSock2.h>
 #include<Windows.h>
 #pragma comment(lib,"ws2_32.lib")
 #include"..\EasyTcpClient\MessageHeader.hpp"
+#include"CELLTimestamp.hpp"
 #else
 #include<unistd.h>
 #include<arpa/inet.h>
@@ -25,7 +31,8 @@ public:
 	ClientSocket(SOCKET sockfd = INVALID_SOCKET)
 	{
 		_sockfd = sockfd;
-		memset(_szMsgBuf, 0, sizeof*_szMsgBuf);
+		memset(_szMsgBuf, 0, sizeof(_szMsgBuf));//这个忘记加括号了
+		_lastPos = 0;
 	}
 	char *msgBuf()
 	{
@@ -46,21 +53,24 @@ public:
 private:
 	
 	SOCKET _sockfd;// fd_set file descr set
-	char _szMsgBuf[RECV_BUFF_SIZE * 10] = {};
+	char _szMsgBuf[RECV_BUFF_SIZE * 10];
 	//接收数据,处理粘包
 	//消息缓冲区数据尾部位置
-	int _lastPos = 0;
+	int _lastPos;
 };
 class EasyTcpServer
 {
+private:
 	SOCKET _sock;
 	std::vector<ClientSocket *>_clients;
+	CELLTimestamp _tTime;
+	int _recvCount;
 public:
 	EasyTcpServer()
 	{
 		//初始化网络环境
 		_sock = INVALID_SOCKET;
-
+		_recvCount = 0;
 	}
 	virtual ~EasyTcpServer()
 	{
@@ -175,10 +185,10 @@ public:
 			//send(_clientSock, msgBuf, strlen(msgBuf) + 1, 0);
 		}
 		else {
-			std::cout << "欢迎新客户端加入：" << inet_ntoa(_client.sin_addr) << " " << _clientSock << std::endl;
-			NewUserJoin userJoin;
-			userJoin.SocketId = _clientSock;
-			SendDataToAll(&userJoin);
+	//		std::cout << "欢迎新客户端加入：" << inet_ntoa(_client.sin_addr) << " " << _clientSock << std::endl;
+	//		NewUserJoin userJoin;
+	//		userJoin.SocketId = _clientSock;
+	//		SendDataToAll(&userJoin);
 			_clients.push_back(new ClientSocket(_clientSock));
 		}
 		
@@ -212,6 +222,7 @@ public:
 			close(_sock);
 
 #endif
+			_clients.clear();
 		}
 
 	//	_sock = INVALID_SOCKET;
@@ -258,6 +269,7 @@ public:
 			{
 				FD_CLR(_sock, &fd_read);
 				Accept();
+				return true;
 			}
 
 
@@ -328,6 +340,14 @@ public:
 	//响应网络消息
 	virtual void OnNetMsg(SOCKET _cSock, DataHeader *header)
 	{
+		_recvCount++;
+		auto t1 = _tTime.getElapsedSecond();
+		if (t1 >= 1.0)
+		{
+			printf("time<%lf>,socket<%d>,clients<%d>,recvCount<%d>\n", t1, _sock,_clients.size(), _recvCount);
+			_recvCount = 0;
+			_tTime.update();
+		}
 		switch (header->cmd)
 		{
 		case CMD_LOGIN:
@@ -345,12 +365,12 @@ public:
 		break;
 		case CMD_LOGOUT:
 		{
-			LogOut *out = NULL;
-			out = (LogOut*)header;
+		//	LogOut *out = NULL;
+		//	out = (LogOut*)header;
 		//	std::cout << _cSock << " 接收到客户端退出命令:" << "UserName: " << out->userName << std::endl;
-			LogOutResult result = {};
-			result.result = 2;
-			SendData(_cSock, &result);
+		//	LogOutResult result = {};
+		//	result.result = 2;
+		//	SendData(_cSock, &result);
 		}
 		break;		
 		default:

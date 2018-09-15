@@ -2,6 +2,7 @@
 #define _EASYTCPCLIENT_HPP
 
 #ifdef _WIN32
+#define FD_SETSIZE 1024
 	#include<WinSock2.h>
 	#include<Windows.h>
 	#pragma comment(lib,"ws2_32.lib")
@@ -52,7 +53,7 @@ public:
 		//	return -1;
 		}
 		else {
-			std::cout << "建立Socket成功。。。" << std::endl;
+		//	std::cout << "建立Socket成功。。。" << std::endl;
 		}
 	}
 	//连接服务器

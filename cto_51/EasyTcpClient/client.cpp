@@ -44,12 +44,25 @@ void cmdThread()
 }
 int main()
 {
-	const int cCount = 100;
+	
+	const int cCount = 2000;
 	EasyTcpClient *c1[cCount];
+	for (int i = 0; i < cCount; i++)
+	{
+		if (!g_bRun)
+		{
+			return 0;
+		}
+		c1[i] = new EasyTcpClient;
+	}
 	for(int i = 0;i<cCount;i++)
 	{ 
-		c1[i] = new EasyTcpClient;
-		c1[i]->Connect("192.168.3.90", 7856);
+		if (!g_bRun)
+		{
+			return 0;
+		}
+			c1[i]->Connect("192.168.3.3", 7856);
+			std::cout << " 当前连接数为:" << i << std::endl;
 	}
 	
 	int a = sizeof(EasyTcpClient);
@@ -58,6 +71,7 @@ int main()
 	Login log;
 	strcpy(log.userName, "ccc");
 	strcpy(log.passWord, "ddd");
+	int b = sizeof(Login);
 	while (g_bRun)
 	{
 		for (int i = 0; i < cCount; i++)
@@ -67,12 +81,13 @@ int main()
 			
 		}
 			
-		//Sleep(10);
+	//	Sleep(1000);
 		
 	}
 	for (int i = 0; i<cCount; i++)
 	c1[i]->Close();
 	
+	std::cout << "clients exit finished" << std::endl;
 	return 0;
 //	int fpid = fork();
 
