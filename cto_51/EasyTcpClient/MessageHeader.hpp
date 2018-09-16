@@ -36,7 +36,7 @@ struct Login :public DataHeader
 	}
 	char userName[32];
 	char passWord[32];
-	char data[932];
+	char data[32];
 
 };
 struct LoginResult :public DataHeader
@@ -45,9 +45,10 @@ struct LoginResult :public DataHeader
 	{
 		dataLength = sizeof(LoginResult);
 		cmd = CMD_LOGIN_RESULT;
+		result = 0;
 	}
 	int result;
-	char data[992];
+	char data[92];
 
 };
 //µÇ³ö²Ù×÷
@@ -68,6 +69,7 @@ struct LogOutResult :public DataHeader
 	{
 		dataLength = sizeof(LogOutResult);
 		cmd = CMD_LOGOUT_RESULT;
+		result = 0;
 	}
 	int result;
 
@@ -77,7 +79,7 @@ struct NewUserJoin :public DataHeader
 {
 	NewUserJoin()
 	{
-		dataLength = sizeof(LogOutResult);
+		dataLength = sizeof(NewUserJoin);
 		cmd = CMD_NEW_USER_JOIN;
 		SocketId = 0;
 	}

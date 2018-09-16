@@ -1,5 +1,4 @@
-﻿
-#include<iostream>
+﻿#include<iostream>
 #include<thread>
 
 #include"EasyTcpClient.hpp"
@@ -14,25 +13,9 @@ void cmdThread()
 		scanf("%s", cmd);
 		if (0 == strcmp(cmd, "exit"))
 		{
-			std::cout << "退出" << std::endl;
-		//	client->Close();
+			std::cout << "退出" << "\n";
 			g_bRun = false;
 			break;
-		}
-		else if (0 == strcmp(cmd, "login"))
-		{
-			Login login;
-			strcpy(login.userName, "liu");
-			strcpy(login.passWord, "12345");
-		//	client->SendData(&login);
-			//csend(sock, (char *)&login, sizeof(Login), 0);
-		}
-		else if (0 == strcmp(cmd, "logout"))
-		{
-			LogOut logout;// = { "liu" };  
-			strcpy(logout.userName, "liu");
-		//	client->SendData(&logout);
-			//send(sock, (char *)&logout, sizeof(LogOut), 0);
 		}
 		else {
 			std::cout << "不支持的命令" << std::endl;
@@ -42,7 +25,7 @@ void cmdThread()
 	
 	
 }
-const int cCount = 1000;
+const int cCount = 8;
 const int tCount = 4;
 EasyTcpClient *c1[cCount];
 void sendThread(int id)//14
@@ -58,25 +41,35 @@ void sendThread(int id)//14
 	for (int i = begin; i<end; i++)
 	{		
 		c1[i]->Connect("192.168.3.3", 7856);
-		std::cout <<"Thread<"<<id<< ">  当前连接数为:" << i << "\n";
+		printf("thread<%d>,Connect=%d\n", id,i);
 	}
+	std::chrono::milliseconds t(3000);
+	std::this_thread::sleep_for(t);
 
-	int a = sizeof(EasyTcpClient);
-	Login log;
-	strcpy(log.userName, "ccc");
-	strcpy(log.passWord, "ddd");
-	int b = sizeof(Login);
+	Login log[10];
+	for (int n = 0; n < 10; n++)
+	{
+		strcpy(log[n].userName, "ccc");
+		strcpy(log[n].passWord, "ddd");
+	}
+	
+	const int nLen = sizeof(log);
 	while (g_bRun)
 	{
 		for (int i = begin; i < end; i++)
 		{
-			c1[i]->SendData(&log);
-		//	c1[i]->OnRun();
+		//	std::cout << "Sending ..." << std::endl;
+			c1[i]->SendData(log,nLen);
+		//	_sleep(2000);
+			c1[i]->OnRun();
 
 		}
 	}
-	for (int i = begin; i<end; i++)
-		c1[i]->Close();
+	for (int n = begin; n < end; n++)
+	{
+		c1[n]->Close();
+        delete c1[n];
+	}
 }
 int main()
 {
@@ -91,10 +84,9 @@ int main()
 		t1.detach();
 	}
 	while (g_bRun)
-	{
 		Sleep(100);
-	}
-	std::cout << "clients exit finished" << std::endl;
+
+	printf("已退出。\n");
 	return 0;
 //	int fpid = fork();
 

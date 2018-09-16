@@ -4,7 +4,7 @@
 #ifdef _WIN32
 
 #ifndef FD_SETSIZE//在server.cpp中提前引入windsock2.h 导致这里的宏定义失效
-#define FD_SETSIZE 10024
+#define FD_SETSIZE 2506
 #endif // !FD_SETSIZE
 
 #include<WinSock2.h>
@@ -12,6 +12,7 @@
 #pragma comment(lib,"ws2_32.lib")
 #include"..\EasyTcpClient\MessageHeader.hpp"
 #include"CELLTimestamp.hpp"
+#include<atomic>
 #else
 #include<unistd.h>
 #include<arpa/inet.h>
@@ -24,7 +25,8 @@
 
 #include<iostream>
 #include<vector>
-
+#include<thread>
+#include<mutex>
 class  ClientSocket 
 {
 public:
@@ -33,6 +35,11 @@ public:
 		_sockfd = sockfd;
 		memset(_szMsgBuf, 0, sizeof(_szMsgBuf));//这个忘记加括号了
 		_lastPos = 0;
+	}
+
+	SOCKET sockfd()
+	{
+		return _sockfd;
 	}
 	char *msgBuf()
 	{
@@ -46,39 +53,263 @@ public:
 	{
 		_lastPos = pos;
 	}
-	SOCKET sockfd()
+	//发送指定Socket数据
+	int SendData( DataHeader *header)
 	{
-		return _sockfd;
+		if ( header)
+		{
+			return send(_sockfd, (const char *)header, header->dataLength, 0);
+		}
+		return SOCKET_ERROR;
 	}
 private:
 	
 	SOCKET _sockfd;// fd_set file descr set
-	char _szMsgBuf[RECV_BUFF_SIZE * 10];
+	char _szMsgBuf[RECV_BUFF_SIZE * 5];
 	//接收数据,处理粘包
 	//消息缓冲区数据尾部位置
 	int _lastPos;
 };
-class EasyTcpServer
+class INetEvent
+{
+public:
+	//客户端加入
+	virtual void OnNetJoin(ClientSocket* pClient) = 0;
+	//客户端离开事件
+	virtual void OnNetLeave(ClientSocket* pClient) = 0;
+	//客户端消息事件
+	virtual void OnNetMsg(ClientSocket* pClient, DataHeader* header) = 0;
+
+
+};
+
+
+class CellServer
+{
+public:
+	CellServer(SOCKET sock = INVALID_SOCKET)
+	{
+		_sock = sock;
+		_pNetEvent = nullptr;
+	}
+	~CellServer()
+	{
+		Close();
+		_sock = INVALID_SOCKET;
+	}
+
+	//关闭
+	void setEventObj(INetEvent *event)
+	{
+		_pNetEvent = event;
+	}
+	void Close()
+	{
+		if (_sock != INVALID_SOCKET)
+		{
+#ifdef _WIN32
+			for (int n = (int)_clients.size() - 1; n >= 0; n--)
+			{
+				closesocket(_clients[n]->sockfd());
+				delete _clients[n];
+			}
+
+			closesocket(_sock);
+#else
+			for (int n =(int) _clients.size() - 1; n >= 0; n--)
+			{
+				close(_clients[n]->sockfd());
+				delete _clients[n];
+			}
+			close(_sock);
+
+#endif
+			_clients.clear();
+		}
+
+		//	_sock = INVALID_SOCKET;
+	}
+	//是否工作中
+	bool isRun()
+	{
+		return _sock != INVALID_SOCKET;
+	}
+
+	//处理网络消息
+	bool OnRun()
+	{
+		
+		
+		while(isRun())
+		{
+			//从缓冲区客户队列取出客户数据
+			if (_clientsBuff.size() > 0)
+			{
+				std::lock_guard<std::mutex> lock(_mutex);
+				for (auto pClient : _clientsBuff)
+				{
+					_clients.push_back(pClient);
+				}
+				_clientsBuff.clear();
+			}
+			//没有客户端需要处理
+			if (_clients.empty())
+			{
+				std::chrono::milliseconds t(1);
+				std::this_thread::sleep_for(t);
+				continue;
+			}
+			
+			//伯克利套接字 BSD socket
+			fd_set fd_read;
+			//清理集合
+			FD_ZERO(&fd_read);
+			//将描述符（socket）加入集合
+			SOCKET maxSock = _clients[0]->sockfd();
+			for (int n = (int)_clients.size() - 1; n >= 0; n--)
+			{
+				FD_SET(_clients[n]->sockfd(), &fd_read);//超过64个无法加入到set中
+														//		std::cout << "fd_set num is " << fd_read.fd_count << "\n";
+				if (maxSock<_clients[n]->sockfd())
+				{
+					maxSock = _clients[n]->sockfd();
+				}
+
+			}
+			///nfds 是一个整数值 是指fd_set集合中所有描述符(socket)的范围，而不是数量
+			///既是所有文件描述符最大值+1 在Windows中这个参数可以写0
+			int ret = select(maxSock + 1, &fd_read, nullptr, nullptr, nullptr);
+			if (ret < 0)
+			{
+				std::cout << "select任务结束！ " << "\n";
+				Close();
+		//		
+				return false;
+			}
+		//	std::cout << "select任务！ " << "\n";
+			for (int n = (int)_clients.size() - 1; n >= 0; n--)
+			{
+				if (FD_ISSET(_clients[n]->sockfd(), &fd_read))
+				{
+			//		std::cout << "select任务！xxxxx " << "\n";
+				//	ret = ;
+					if (-1 == RecvData(_clients[n]))
+					{
+						auto iter = _clients.begin() + n;//std::vector<SOCKET>::iterator
+						if (iter != _clients.end())
+						{
+							if(_pNetEvent)
+								_pNetEvent->OnNetLeave(_clients[n]);
+							delete _clients[n];
+							_clients.erase(iter);
+						}
+					}
+				}
+			}
+			//	std::cout << "空闲时间处理其他数据" << "\n";
+			//return true;
+		}
+
+		return false;
+
+	}
+	char _szRecv[RECV_BUFF_SIZE] = {};//第二缓冲区，双缓冲
+	//接收数据,处理粘包
+	int RecvData(ClientSocket  *pClient)
+	{
+
+		int nLen = (int)recv(pClient->sockfd(), _szRecv, RECV_BUFF_SIZE, 0);
+		//
+		if (nLen < 0)
+		{
+			//printf("客户端<Socket=%d>已退出，任务结束。\n", pClient->sockfd());
+			return -1;
+		}
+		//将收取的数据拷贝到消息缓冲区
+		memcpy(pClient->msgBuf() + pClient->getLast(), _szRecv, nLen);
+		//	DataHeader *header = (DataHeader *)_szMsgBuf;
+		pClient->setLastPos(pClient->getLast() + nLen);
+//		int a = sizeof(DataHeader);
+		while (pClient->getLast() >= sizeof(DataHeader))
+		{
+			DataHeader *header = (DataHeader *)pClient->msgBuf();
+			//判断消息缓冲区的数据长度大于数据长度
+			if (pClient->getLast() >= header->dataLength)
+			{
+			//	std::cout << "package ... " << pClient->sockfd() << "\n";
+				//剩余数据长度
+				int nSize = pClient->getLast() - header->dataLength;
+				OnNetMsg(pClient, header);
+				//消息缓冲区数据迁移
+				memcpy(pClient->msgBuf(), pClient->msgBuf() + header->dataLength, nSize);
+				pClient->setLastPos(nSize);// = nSize;
+			}
+			else {//剩余数据不足一个完整消息
+				break;
+			}
+		}
+		return 0;
+	}
+	//响应网络消息
+	virtual void OnNetMsg(ClientSocket* pClient, DataHeader* header)
+	{
+		_pNetEvent->OnNetMsg(pClient, header);
+	}
+
+	void addClient(ClientSocket* pClient)
+	{
+		
+		std::lock_guard<std::mutex>lock(_mutex);
+	//	std::cout << "cellServer add ClientSocket..." << std::this_thread::get_id() << "\n";
+		_clientsBuff.push_back(pClient);
+	}
+	void Start()
+	{
+		_thread = std::thread(std::mem_fn(&CellServer::OnRun), this);
+	}
+	size_t getClientCount()
+	{
+		return _clients.size() +_clientsBuff.size();
+	}
+private:
+	SOCKET _sock;
+	//正式客户队列
+	std::vector<ClientSocket *>_clients;
+	
+	//缓冲客户队列
+	std::vector<ClientSocket *>_clientsBuff;
+    std::mutex _mutex;
+	std::thread _thread;
+	//网络事件对象
+	INetEvent* _pNetEvent;
+};
+
+#define _CellServer_THREAD_COUNT 4
+class EasyTcpServer:public INetEvent
 {
 private:
 	SOCKET _sock;
-	std::vector<ClientSocket *>_clients;
+	//消息处理对象，内部会创建线程
+	std::vector<CellServer*> _cellServers;
+	//每秒消息计时
 	CELLTimestamp _tTime;
-	int _recvCount;
+protected:
+	//收到消息计数
+	std::atomic_int _recvCount;
+	//客户端计数
+	std::atomic_int _clientCount;
 public:
 	EasyTcpServer()
 	{
 		//初始化网络环境
 		_sock = INVALID_SOCKET;
 		_recvCount = 0;
+		_clientCount = 0;
+	//	_recvCount = 0;
 	}
 	virtual ~EasyTcpServer()
 	{
-		//if (INVALID_SOCKET != _sock)
-		//{
-			Close();
-	//	}
-
+		Close();
 	}
 	//初始化socket
 	SOCKET InitSocket()
@@ -91,17 +322,17 @@ public:
 #endif // _WIN32
 		if (INVALID_SOCKET != _sock)
 		{
-			std::cout << "Socket关闭旧连接。。。" << std::endl;
+			std::cout << "Socket关闭旧连接。。。" << "\n";
 			Close();
 		}
 		_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 		if (INVALID_SOCKET == _sock)
 		{
-			std::cout << "服务端SOCKET建立出错" << std::endl;
+			std::cout << "服务端SOCKET建立出错" << "\n";
 		//	return INVALID_SOCKET;
 		}
 		else {
-			std::cout << "服务端SOCKET建立成功。。。" << std::endl;
+			std::cout << "服务端SOCKET建立成功。。。" << "\n";
 		}
 		return _sock;
 
@@ -109,13 +340,14 @@ public:
 	//绑定
 	int Bind(const char *ip, unsigned short port)
 	{
-		int ret = 0;
-		if (INVALID_SOCKET == _sock)
-		{
-			InitSocket();
-		}
+		//if (INVALID_SOCKET == _sock)
+		//{
+		//	InitSocket();
+		//}
+		// 2 bind 绑定用于接受客户端连接的网络端口
 		sockaddr_in _sin = {};
 		_sin.sin_family = AF_INET;
+		_sin.sin_port = htons(port);
 #ifdef _WIN32
 		if (ip)
 		{ 
@@ -137,19 +369,17 @@ public:
 			_sin.sin_addr.s_addr = INADDR_ANY;
 		}
 #endif // _WIN32
-		_sin.sin_port = htons(port);
-
-		if (SOCKET_ERROR == bind(_sock, (sockaddr *)&_sin, sizeof(_sin)))
+		int ret = bind(_sock, (sockaddr *)&_sin, sizeof(_sin));
+		if (SOCKET_ERROR == ret)
 		{
-			std::cout << "端口绑定错误	" << std::endl;
-			return -1;
+			std::cout << "端口绑定错误	" << "\n";
 		}
 		else
 		{
-			std::cout << "端口绑定成功" << port<<std::endl;
+			std::cout << "端口绑定成功" << port<<"\n";
 		}
 		
-		return 0;
+		return ret;
 
 	}
 
@@ -160,16 +390,16 @@ public:
 		int ret = listen(_sock, backlog);
 		if (ret == SOCKET_ERROR)
 		{
-			std::cout << "监听错误" << std::endl;
+			std::cout << "监听错误" << "\n";
 		}
 		else {
-			std::cout << "监听网络端口成功" << std::endl;
+			std::cout << "监听网络端口成功" << "\n";
 		}
 		return ret;
 	}
 
-	//接受连接
-	int Accept()
+	//接受客户端连接
+	SOCKET Accept()
 	{
 		sockaddr_in _client = {};
 		int nAddrLen = sizeof(sockaddr_in);// = 5;
@@ -181,21 +411,50 @@ public:
 #endif
 		if (INVALID_SOCKET == _clientSock)
 		{
-			std::cout << "Socket=<" << _clientSock << ">无效的Socket" << std::endl;
+			std::cout << "Socket=<" << _clientSock << ">无效的Socket" << "\n";
 			//send(_clientSock, msgBuf, strlen(msgBuf) + 1, 0);
 		}
 		else {
-	//		std::cout << "欢迎新客户端加入：" << inet_ntoa(_client.sin_addr) << " " << _clientSock << std::endl;
+	//		std::cout << "欢迎新客户端加入：" << inet_ntoa(_client.sin_addr) << " " << _clientSock << "\n";
 	//		NewUserJoin userJoin;
 	//		userJoin.SocketId = _clientSock;
 	//		SendDataToAll(&userJoin);
-			_clients.push_back(new ClientSocket(_clientSock));
+	//		_clients.push_back(new ClientSocket(_clientSock));
+			addClientToCellServer(new ClientSocket(_clientSock));
+			
 		}
 		
 		return _clientSock;
 
 	}
+	void addClientToCellServer(ClientSocket *pClient)
+	{
+		//查找客户数量最少的CellServer消息处理对象
+		auto pMinServer = _cellServers[0];
+		for (auto pCellServer : _cellServers)
+		{
+			if (pMinServer->getClientCount() > pCellServer->getClientCount())
+			{
+				pMinServer = pCellServer;
+			}
+		}
+		pMinServer->addClient(pClient);
+		OnNetJoin(pClient);
+		
+	}
 
+	void Start(int nCellServer)
+	{
+		for (int n = 0; n < nCellServer; n++)
+		{
+			auto ser = new CellServer(_sock);
+			_cellServers.push_back(ser);
+			//注册网络事件接受对象
+			ser->setEventObj(this);
+			//启动消息处理线程
+			ser->Start();
+		}
+	}
 	//关闭
 
 	void Close()
@@ -204,91 +463,47 @@ public:
 		if (_sock != INVALID_SOCKET)
 		{
 #ifdef _WIN32
-			for (int n = _clients.size() - 1; n >= 0; n--)
-			{
-				closesocket(_clients[n]->sockfd());
-				delete _clients[n];
-			}
-
+			//关闭套节字closesocket
 			closesocket(_sock);
 
 			WSACleanup();
 #else
-			for (int n = _clients.size() - 1; n >= 0; n--)
-			{
-				close(_clients[n]->sockfd());
-				delete _clients[n];
-			}
+			//关闭套节字closesocket
 			close(_sock);
 
 #endif
-			_clients.clear();
 		}
-
-	//	_sock = INVALID_SOCKET;
 	}
-	//处理数据
-	int ncount = 0;
+	//处理网络消息
 	bool OnRun()
 	{
 		if (isRun())
 		{
-			fd_set fd_read;
-			fd_set fd_write;
-			fd_set fd_except;
-			FD_ZERO(&fd_read);
-			FD_ZERO(&fd_write);
-			FD_ZERO(&fd_except);
-
-			FD_SET(_sock, &fd_read);
-			FD_SET(_sock, &fd_write);
-			FD_SET(_sock, &fd_except);
-			SOCKET maxSock = _sock;
-			for (int n = _clients.size() - 1; n >= 0; n--)
-			{
-				FD_SET(_clients[n]->sockfd(), &fd_read);//超过64个无法加入到set中
-											   //		std::cout << "fd_set num is " << fd_read.fd_count << std::endl;
-				if (maxSock<_clients[n]->sockfd())
-				{
-					maxSock = _clients[n]->sockfd();
-				}
-
-			}
-			timeval t = { 1,0 };
-			//    SOCKET_ERROR
-
-			int ret = select(maxSock + 1, &fd_read, &fd_write, &fd_except, &t);
+			time4msg();
+			//伯克利套接字 BSD socket
+			fd_set fdRead;//描述符（socket） 集合
+			//清理集合
+			FD_ZERO(&fdRead);
+			//将描述符（socket）加入集合
+			FD_SET(_sock, &fdRead);
+			///nfds 是一个整数值 是指fd_set集合中所有描述符(socket)的范围，而不是数量
+			///既是所有文件描述符最大值+1 在Windows中这个参数可以写0
+			timeval t = { 0,10};
+			int ret = select(_sock + 1, &fdRead, 0, 0, &t); //
 			if (ret < 0)
 			{
-				std::cout << "select任务结束！ " << std::endl;
+				std::cout << "select任务结束！ " << "\n";
 				Close();
 				return false;
 			}
-			//        std::cout << "noblock" << std::endl;
-			if (FD_ISSET(_sock, &fd_read))
+			//        std::cout << "noblock" << "\n";
+			if (FD_ISSET(_sock, &fdRead))
 			{
-				FD_CLR(_sock, &fd_read);
+				FD_CLR(_sock, &fdRead);
 				Accept();
 				return true;
 			}
-
-
-			for (int n = (int)_clients.size() - 1; n >= 0; n--)
-			{
-				if (FD_ISSET(_clients[n]->sockfd(), &fd_read))
-				{
-					if (-1 == RecvData(_clients[n]))
-					{
-						auto iter = _clients.begin() + n;//std::vector<SOCKET>::iterator
-						if (iter != _clients.end())
-						{
-							delete _clients[n];
-							_clients.erase(iter);
-						}
-					}
-				}
-			}
-			//	std::cout << "空闲时间处理其他数据" << std::endl;
+			//	std::cout << "空闲时间处理其他数据" << "\n";
 			return true;
 		}
 
@@ -302,126 +517,36 @@ public:
 		return _sock != INVALID_SOCKET;
 	}
 
-	char _szRecv[RECV_BUFF_SIZE] = {};//第二缓冲区，双缓冲
-	//接收数据,处理粘包
-	int RecvData(ClientSocket  *pClient)
+	//计算并输出每秒收到的网络消息
+	void time4msg()
 	{
-		
-		int nLen = (int)recv(pClient->sockfd(), _szRecv, RECV_BUFF_SIZE, 0);
-		//
-		if (nLen < 0)
-		{
-			std::cout << "客户端退出连接 " << pClient->sockfd() << std::endl;
-			return -1;
-		}
-		//将收取的数据拷贝到消息缓冲区
-		memcpy(pClient->msgBuf() + pClient->getLast(), _szRecv, nLen);
-		//	DataHeader *header = (DataHeader *)_szMsgBuf;
-		pClient->setLastPos(pClient->getLast() + nLen);
-		while (pClient->getLast() >= sizeof(DataHeader))
-		{
-			DataHeader *header = (DataHeader *)pClient->msgBuf();
-			//判断消息缓冲区的数据长度大于数据长度
-			if (pClient->getLast() >= header->dataLength)
-			{
-				//剩余数据长度
-				int nSize = pClient->getLast() - header->dataLength;
-				OnNetMsg(pClient->sockfd(),header);
-				//消息缓冲区数据迁移
-				memcpy(pClient->msgBuf(), pClient->msgBuf() + header->dataLength, nSize);
-				pClient->setLastPos(nSize);// = nSize;
-			}
-			else {//剩余数据不足一个完整消息
-				break;
-			}
-		}
-		return 0;
-	}
-	//响应网络消息
-	virtual void OnNetMsg(SOCKET _cSock, DataHeader *header)
-	{
-		_recvCount++;
+	//	_recvCount++;
 		auto t1 = _tTime.getElapsedSecond();
 		if (t1 >= 1.0)
 		{
-			printf("time<%lf>,socket<%d>,clients<%d>,recvCount<%d>\n", t1, _sock,_clients.size(), _recvCount);
+			printf("thread<%d>,time<%lf>,socket<%d>,clients<%d>,recvCount<%d>\n", _cellServers.size(), t1, _sock,(int)_clientCount, (int)(_recvCount/ t1));
 			_recvCount = 0;
 			_tTime.update();
-		}
-		switch (header->cmd)
-		{
-		case CMD_LOGIN:
-		{
-			Login *login = NULL;
-			login = (Login*)header;
-		//	std::cout << _cSock << " 接收到客户端命令 CMD_LOGIN " << "UserName: " << login->userName << " Password:" << login->passWord << " 数据长度：" << login->dataLength << std::endl;
-
-			LoginResult result = {};
-			result.result = 1;
-		//	SendData(_cSock,&result);
-		//	send(_cSock, (char *)&result, sizeof(LoginResult), 0);
-
-		}
-		break;
-		case CMD_LOGOUT:
-		{
-		//	LogOut *out = NULL;
-		//	out = (LogOut*)header;
-		//	std::cout << _cSock << " 接收到客户端退出命令:" << "UserName: " << out->userName << std::endl;
-		//	LogOutResult result = {};
-		//	result.result = 2;
-		//	SendData(_cSock, &result);
-		}
-		break;		
-		default:
-		{
-			std::cout << _cSock << "服务端收到客户端未定义消息:" << header->dataLength << std::endl;
-			DataHeader h;
-		//	send(_cSock, (char *)&h, sizeof(DataHeader), 0);
-		}
-		break;
-		}
+		}	
 
 	}
-
-	//发送指定Socket数据
-	int SendData(SOCKET _cSock,DataHeader *header)
+	//只会被一个线程触发 安全
+	virtual void OnNetJoin(ClientSocket* pClient)
 	{
-		if (isRun() && header)
-		{
-			return send(_cSock, (const char *)header, header->dataLength, 0);
-		}
-		else
-		{
-			return SOCKET_ERROR;
-		}
+		_clientCount++;
 	}
-	//发送指定Socket数据
-	int SendDataToAll(DataHeader *header)
+	//cellServer 4 多个线程触发 不安全
+	//如果只开启1个cellServer就是安全的
+	virtual void OnNetLeave(ClientSocket* pClient)
 	{
-		if (isRun() && header)
-		{
-			for (int n = _clients.size() - 1; n >= 0; n--)
-			{
-				SendData(_clients[n]->sockfd(), header);
-			}
-            return 0;
-		}
-		else
-		{
-			return SOCKET_ERROR;
-		}
+		_clientCount--;
 	}
-
-	
-
-	
-
-private:
-
+	//cellServer 4 多个线程触发 不安全
+	//如果只开启1个cellServer就是安全的
+	virtual void OnNetMsg(ClientSocket* pClient, DataHeader* header)
+	{
+		_recvCount++;
+	}
 };
 
-
-
-
-#endif //_EASYTCPSERVER_HPP
+#endif // !_EasyTcpServer_hpp_

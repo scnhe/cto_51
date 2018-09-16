@@ -14,30 +14,92 @@ void cmdThread()
 		if (0 == strcmp(cmd, "exit"))
 		{
 			g_bRun = false;
-			std::cout << "退出" << std::endl;			
-			
-			return;
-		}		
-
+			printf("退出cmdThread线程\n");
+			break;
+		}
+		else {
+			printf("不支持的命令。\n");
+		}
 	}
-
-
 }
+
+class MyServer : public EasyTcpServer
+{
+public:
+
+	//只会被一个线程触发 安全
+	virtual void OnNetJoin(ClientSocket* pClient)
+	{
+		_clientCount++;
+		printf("client<%d> join\n", pClient->sockfd());
+	}
+	//cellServer 4 多个线程触发 不安全
+	//如果只开启1个cellServer就是安全的
+	virtual void OnNetLeave(ClientSocket* pClient)
+	{
+		_clientCount--;
+		printf("client<%d> leave\n", pClient->sockfd());
+	}
+	//cellServer 4 多个线程触发 不安全
+	//如果只开启1个cellServer就是安全的
+	virtual void OnNetMsg(ClientSocket* pClient, DataHeader* header)
+	{
+		_recvCount++;
+		switch (header->cmd)
+		{
+		case CMD_LOGIN:
+		{
+
+			Login* login = (Login*)header;
+			//printf("收到客户端<Socket=%d>请求：CMD_LOGIN,数据长度：%d,userName=%s PassWord=%s\n", cSock, login->dataLength, login->userName, login->PassWord);
+			//忽略判断用户密码是否正确的过程
+			LoginResult ret;
+			pClient->SendData(&ret);
+		}
+		break;
+		case CMD_LOGOUT:
+		{
+			
+			LogOut* logout = (LogOut*)header;
+			//printf("收到客户端<Socket=%d>请求：CMD_LOGOUT,数据长度：%d,userName=%s \n", cSock, logout->dataLength, logout->userName);
+			//忽略判断用户密码是否正确的过程
+			//LogoutResult ret;
+			//SendData(cSock, &ret);
+		}
+		break;
+		default:
+		{
+			printf("<socket=%d>收到未定义消息,数据长度：%d\n", pClient->sockfd(), header->dataLength);
+			//DataHeader ret;
+			//SendData(cSock, &ret);
+		}
+		break;
+		}
+	}
+private:
+
+};
 
 int main()
 {
 
-	EasyTcpServer s;
-	s.InitSocket();
-	s.Bind(nullptr,7856);
-	s.Listen(10);
-	std::thread t(cmdThread);
-	t.detach();
+	MyServer server;
+	server.InitSocket();
+	server.Bind(nullptr, 7856);
+	server.Listen(5);
+	server.Start(4);
+
+	//启动UI线程
+	std::thread t1(cmdThread);
+	t1.detach();
+
 	while (g_bRun)
 	{
-		s.OnRun();
+		server.OnRun();
+		//printf("空闲时间处理其它业务..\n");
 	}
-	s.Close();
-	std::cout << "main end" << std::endl;
+	server.Close();
+	printf("已退出。\n");
+	getchar();
 	return 0;
 }

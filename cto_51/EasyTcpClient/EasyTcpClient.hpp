@@ -2,7 +2,7 @@
 #define _EASYTCPCLIENT_HPP
 
 #ifdef _WIN32
-#define FD_SETSIZE 1024
+
 	#include<WinSock2.h>
 	#include<Windows.h>
 	#pragma comment(lib,"ws2_32.lib")
@@ -21,12 +21,13 @@
 class EasyTcpClient
 {
 	SOCKET _sock;
+	bool _isConnect;
 public:
 	EasyTcpClient()
 	{
 		//初始化网络环境
 		_sock = INVALID_SOCKET;
-	
+		_isConnect = false;
 	}
 	virtual ~EasyTcpClient()
 	{
@@ -43,17 +44,17 @@ public:
 #endif // _WIN32
 		if (INVALID_SOCKET != _sock)
 		{
-			std::cout << "Socket关闭旧连接。。。" << std::endl;
+			std::cout << "Socket关闭旧连接。。。" << "\n";
 			Close();
 		}
 		_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 		if (INVALID_SOCKET == _sock)
 		{
-			std::cout << "错误，建立Socket失败。。。" << std::endl;
+			std::cout << "错误，建立Socket失败。。。" << "\n";
 		//	return -1;
 		}
 		else {
-		//	std::cout << "建立Socket成功。。。" << std::endl;
+		//	std::cout << "建立Socket成功。。。" << "\n";
 		}
 	}
 	//连接服务器
@@ -72,17 +73,18 @@ public:
 		_sin.sin_addr.s_addr = inet_addr(ip);
 #endif // _WIN32
 		_sin.sin_port = htons(port);
-
-		if (SOCKET_ERROR == connect(_sock, (sockaddr *)&_sin, sizeof(_sin)))
+         ret = connect(_sock, (sockaddr *)&_sin, sizeof(_sin));
+		if (SOCKET_ERROR == ret )
 		{
-			std::cout << "Connect error	" << std::endl;
+			std::cout << "Connect error	" << "\n";
 			return -1;
 		}
 		else
 		{
-		//	std::cout << "客户端" << _sock << "连接服务器成功" << std::endl;
+		    _isConnect = true;
+		//	std::cout << "客户端" << _sock << "连接服务器成功" << "\n";
 		}
-		return 0;
+		return ret;
 
 	}
 
@@ -102,32 +104,23 @@ public:
 			_sock = INVALID_SOCKET;
 
 		}
-		
-		
+		_isConnect = false;
 	}
 
-	//处理数据
-	int ncount = 0;
+	//处理网络消息
 	bool OnRun()
 	{
 		if (isRun())
 		{
 			fd_set fdReads;
-			fd_set fdWrites;
-			fd_set fdExcepts;
-
 			FD_ZERO(&fdReads);
-			FD_ZERO(&fdWrites);
-			FD_ZERO(&fdExcepts);
-
 			FD_SET(_sock, &fdReads);
 			timeval t = { 0,0 };
-			int ret = select(_sock + 1, &fdReads, &fdWrites, &fdExcepts, &t);
-			
-//			std::cout << " select ret = " << ret << " count = " << ncount++ << std::endl;
+			int ret = select(_sock + 1, &fdReads, 0, 0, &t); 
+			//printf("select ret=%d count=%d\n", ret, _nCount++);
 			if (ret < 0)
 			{
-				std::cout << "任务结束1" << std::endl;
+				std::cout << "任务结束1" << "\n";
 				Close();
 				return false;
 				//	break;
@@ -137,14 +130,14 @@ public:
 				FD_CLR(_sock, &fdReads);
 				if (-1 == RecvData(_sock))
 				{
-					std::cout << "任务结束2" << std::endl;
+					std::cout << "任务结束2" << "\n";
 					Close();
 					return false;
 					//	break;
 				}
 			}
 			return true;
-			//	std::cout << "空闲时间处理其他数据" << std::endl;
+			//	std::cout << "空闲时间处理其他数据" << "\n";
 		}
 
 		return false;
@@ -153,13 +146,13 @@ public:
 
 	bool isRun()
 	{
-		return _sock != INVALID_SOCKET;
+		return _sock != INVALID_SOCKET && _isConnect;
 	}
 	//接收缓冲区
 
 	char _szRecv[RECV_BUFF_SIZE] = {};
 	//第二缓冲区，消息缓冲区
-	char _szMsgBuf[RECV_BUFF_SIZE * 10] = {};
+	char _szMsgBuf[RECV_BUFF_SIZE * 5] = {};
 	//接收数据,处理粘包
 	//消息缓冲区数据尾部位置
 	int _lastPos = 0;
@@ -167,12 +160,12 @@ public:
 	{
 		
 		int nLen = (int)recv(_cSock, _szRecv, RECV_BUFF_SIZE, 0);
-//		std::cout << "Recv Data from srv is " << nLen << std::endl;
+//		std::cout << "Recv Data from srv is " << nLen << "\n";
 //		return 0;
 		
 		if (nLen <= 0)
 		{
-			std::cout << "与服务器断开连接" << nLen<<std::endl;
+			std::cout << "与服务器断开连接" << nLen<<"\n";
 		//	Close();
 			return -1;
 		}
@@ -209,7 +202,7 @@ public:
 		case CMD_LOGIN_RESULT:
 		{
 			LoginResult *result = (LoginResult *)header;
-		//	std::cout << _sock << " 收到服务器返回消息:" << "CMD_LOGIN_RESULT" << result->result << "数据长度："<<result->dataLength<<std::endl;
+		//	std::cout << _sock << " 收到服务器返回消息:" << "CMD_LOGIN_RESULT" << result->result << "数据长度："<<result->dataLength<<"\n";
 
 
 		}
@@ -217,42 +210,44 @@ public:
 		case CMD_LOGOUT_RESULT:
 		{
 			LogOutResult *result = (LogOutResult *)header;
-		//	std::cout << _sock << " 收到服务器返回消息:" << "CMD_LOGOUT_RESULT " << result->result << "数据长度：" << result->dataLength<<std::endl;
+		//	std::cout << _sock << " 收到服务器返回消息:" << "CMD_LOGOUT_RESULT " << result->result << "数据长度：" << result->dataLength<<"\n";
 
 		}
 		break;
 		case CMD_NEW_USER_JOIN:
 		{
 			NewUserJoin *result = (NewUserJoin *)header;
-		//	std::cout << _sock << " 收到服务器返回消息:" << "有新用户加入---> " << result->SocketId << result->dataLength << std::endl;
+		//	std::cout << _sock << " 收到服务器返回消息:" << "有新用户加入---> " << result->SocketId << result->dataLength << "\n";
 		}
 		break;
 		case CMD_ERROR:
 		{
-			std::cout << "收到错误消息 " << _sock << " 数据长度为 " << header->dataLength << std::endl;
+			std::cout << "收到错误消息 " << _sock << " 数据长度为 " << header->dataLength << "\n";
 		}
 		break;
 		default:
 		{
-			std::cout << "收到未定义类型消息,消息长度为：" << header->dataLength<<std::endl;
+			std::cout << "收到未定义类型消息,消息长度为：" << header->dataLength<<"\n";
 		}
-		break;
+	
 		}
 	
 	}
 
 	
 	//发送数据
-	int SendData(DataHeader *header)
+	int SendData(DataHeader *header,int nLen)
 	{
+	    int ret = SOCKET_ERROR;
 		if (isRun() && header)
 		{
-			return send(_sock, (const char *)header, header->dataLength, 0);
+			ret =  send(_sock, (const char *)header, nLen, 0);
+			if(SOCKET_ERROR ==ret)
+			{
+				Close();
+			}
 		}
-		else
-		{
-			return SOCKET_ERROR;
-		}
+		return ret;
 	}
 	
 
