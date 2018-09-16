@@ -42,51 +42,58 @@ void cmdThread()
 	
 	
 }
-int main()
+const int cCount = 1000;
+const int tCount = 4;
+EasyTcpClient *c1[cCount];
+void sendThread(int id)//14
 {
-	
-	const int cCount = 2000;
-	EasyTcpClient *c1[cCount];
-	for (int i = 0; i < cCount; i++)
+	int c = cCount / tCount;
+	int begin = (id - 1)*c;
+	int end = id * c;
+	for (int i = begin; i < end; i++)
 	{
-		if (!g_bRun)
-		{
-			return 0;
-		}
+	
 		c1[i] = new EasyTcpClient;
 	}
-	for(int i = 0;i<cCount;i++)
-	{ 
-		if (!g_bRun)
-		{
-			return 0;
-		}
-			c1[i]->Connect("192.168.3.3", 7856);
-			std::cout << " 当前连接数为:" << i << std::endl;
+	for (int i = begin; i<end; i++)
+	{		
+		c1[i]->Connect("192.168.3.3", 7856);
+		std::cout <<"Thread<"<<id<< ">  当前连接数为:" << i << "\n";
 	}
-	
+
 	int a = sizeof(EasyTcpClient);
-	std::thread t1(cmdThread);
-	t1.detach();
 	Login log;
 	strcpy(log.userName, "ccc");
 	strcpy(log.passWord, "ddd");
 	int b = sizeof(Login);
 	while (g_bRun)
 	{
-		for (int i = 0; i < cCount; i++)
+		for (int i = begin; i < end; i++)
 		{
 			c1[i]->SendData(&log);
-			c1[i]->OnRun();
-			
+		//	c1[i]->OnRun();
+
 		}
-			
-	//	Sleep(1000);
-		
 	}
-	for (int i = 0; i<cCount; i++)
-	c1[i]->Close();
+	for (int i = begin; i<end; i++)
+		c1[i]->Close();
+}
+int main()
+{
+	//ui线程
+	std::thread t1(cmdThread);
+	t1.detach();
+
 	
+	for (int n = 0; n < tCount; n++)
+	{
+		std::thread t1(sendThread,n+1);
+		t1.detach();
+	}
+	while (g_bRun)
+	{
+		Sleep(100);
+	}
 	std::cout << "clients exit finished" << std::endl;
 	return 0;
 //	int fpid = fork();

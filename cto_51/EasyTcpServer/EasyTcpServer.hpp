@@ -358,7 +358,7 @@ public:
 
 			LoginResult result = {};
 			result.result = 1;
-			SendData(_cSock,&result);
+		//	SendData(_cSock,&result);
 		//	send(_cSock, (char *)&result, sizeof(LoginResult), 0);
 
 		}

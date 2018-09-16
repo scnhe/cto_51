@@ -15,7 +15,7 @@ void workFun(int index)
 {
 	for (int n = 0; n < 10000000; n++)
 	{
-	//	lock_guard<mutex> lg(m);//自解锁，离开区域自解锁，比lock,安全性上更好
+		lock_guard<mutex> lg(m);//自解锁，离开区域自解锁，比lock,安全性上更好
 //		m.lock();
 		//临界区开始
 		sum2++;

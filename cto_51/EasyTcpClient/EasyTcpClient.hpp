@@ -80,7 +80,7 @@ public:
 		}
 		else
 		{
-			std::cout << "客户端" << _sock << "连接服务器成功" << std::endl;
+		//	std::cout << "客户端" << _sock << "连接服务器成功" << std::endl;
 		}
 		return 0;
 
