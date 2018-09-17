@@ -27,6 +27,7 @@
 #include<vector>
 #include<thread>
 #include<mutex>
+#include<map>
 class  ClientSocket 
 {
 public:
@@ -108,18 +109,18 @@ public:
 		if (_sock != INVALID_SOCKET)
 		{
 #ifdef _WIN32
-			for (int n = (int)_clients.size() - 1; n >= 0; n--)
+			for (auto iter : _clients)
 			{
-				closesocket(_clients[n]->sockfd());
-				delete _clients[n];
+				closesocket(iter.second->sockfd());
+				delete iter.second;
 			}
 
 			closesocket(_sock);
 #else
-			for (int n =(int) _clients.size() - 1; n >= 0; n--)
+			for (auto iter : _clients)
 			{
-				close(_clients[n]->sockfd());
-				delete _clients[n];
+				close(iter.second->sockfd());
+				delete iter.second;
 			}
 			close(_sock);
 
@@ -136,11 +137,13 @@ public:
 	}
 
 	//处理网络消息
+	fd_set _fdRead_bak;
+	bool _clients_change;
+	SOCKET _maxSock;
 	bool OnRun()
 	{
-		
-		
-		while(isRun())
+		_clients_change = true;
+		while (isRun())
 		{
 			//从缓冲区客户队列取出客户数据
 			if (_clientsBuff.size() > 0)
@@ -148,9 +151,11 @@ public:
 				std::lock_guard<std::mutex> lock(_mutex);
 				for (auto pClient : _clientsBuff)
 				{
-					_clients.push_back(pClient);
+		//			_clients.push_back(pClient);
+					_clients[pClient->sockfd()] = pClient;
 				}
 				_clientsBuff.clear();
+				_clients_change = true;
 			}
 			//没有客户端需要处理
 			if (_clients.empty())
@@ -164,21 +169,32 @@ public:
 			fd_set fd_read;
 			//清理集合
 			FD_ZERO(&fd_read);
-			//将描述符（socket）加入集合
-			SOCKET maxSock = _clients[0]->sockfd();
-			for (int n = (int)_clients.size() - 1; n >= 0; n--)
+			if (_clients_change)
 			{
-				FD_SET(_clients[n]->sockfd(), &fd_read);//超过64个无法加入到set中
-														//		std::cout << "fd_set num is " << fd_read.fd_count << "\n";
-				if (maxSock<_clients[n]->sockfd())
+				_clients_change = false;
+				//将描述符（socket）加入集合
+				_maxSock = _clients.begin()->second->sockfd();
+				for (auto iter :_clients)
 				{
-					maxSock = _clients[n]->sockfd();
-				}
+					FD_SET(iter.second->sockfd(), &fd_read);//超过64个无法加入到set中
+															//		std::cout << "fd_set num is " << fd_read.fd_count << "\n";
+					if (_maxSock<iter.second->sockfd())
+					{
+						_maxSock = iter.second->sockfd();
+					}
 
+				}
+				memcpy(&_fdRead_bak, &fd_read, sizeof(fd_set));
 			}
+			else
+			{
+				memcpy(&fd_read,&_fdRead_bak,sizeof(fd_set));
+			}
+			
 			///nfds 是一个整数值 是指fd_set集合中所有描述符(socket)的范围，而不是数量
 			///既是所有文件描述符最大值+1 在Windows中这个参数可以写0
-			int ret = select(maxSock + 1, &fd_read, nullptr, nullptr, nullptr);
+			timeval t = {0,0};
+			int ret = select(_maxSock + 1, &fd_read, nullptr, nullptr, nullptr);
 			if (ret < 0)
 			{
 				std::cout << "select任务结束！ " << "\n";
@@ -186,26 +202,54 @@ public:
 		//		
 				return false;
 			}
-		//	std::cout << "select任务！ " << "\n";
-			for (int n = (int)_clients.size() - 1; n >= 0; n--)
+			else if (ret == 0)
 			{
-				if (FD_ISSET(_clients[n]->sockfd(), &fd_read))
+				continue;
+			}
+		//	std::cout << "select任务！ " << "\n";
+#ifdef _WIN32
+			for (int n = 0;n<fd_read.fd_count; n++)
+			{
+				auto iter = _clients.find(fd_read.fd_array[n]);
+				if (-1 == RecvData(iter->second))
 				{
-			//		std::cout << "select任务！xxxxx " << "\n";
-				//	ret = ;
-					if (-1 == RecvData(_clients[n]))
+					_clients_change = true;					
+					if (_pNetEvent)
+						_pNetEvent->OnNetLeave(iter->second);
+					//	delete iter.second;
+					_clients.erase(iter->first);
+				}
+			}
+
+#else
+			for (auto iter : _clients)
+			{
+				if (FD_ISSET(iter.second->sockfd(), &fd_read))
+				{
+					//		std::cout << "select任务！xxxxx " << "\n";
+					//	ret = ;
+					if (-1 == RecvData(iter.second))
 					{
-						auto iter = _clients.begin() + n;//std::vector<SOCKET>::iterator
-						if (iter != _clients.end())
-						{
-							if(_pNetEvent)
-								_pNetEvent->OnNetLeave(_clients[n]);
-							delete _clients[n];
-							_clients.erase(iter);
-						}
+						_clients_change = true;
+						temp.push_back(iter.second);
+						if (_pNetEvent)
+							_pNetEvent->OnNetLeave(iter.second);
+						//	delete iter.second;
+						_clients.erase(iter.first);
+
+
 					}
 				}
 			}
+			for (auto iter : temp)
+			{
+				_clients.erase(iter->sockfd());
+				delete iter;
+			}
+#endif // _WIN32
+			std::vector<ClientSocket *>temp;
+			
+			
 			//	std::cout << "空闲时间处理其他数据" << "\n";
 			//return true;
 		}
@@ -274,7 +318,7 @@ public:
 private:
 	SOCKET _sock;
 	//正式客户队列
-	std::vector<ClientSocket *>_clients;
+	std::map<SOCKET,ClientSocket *>_clients;
 	
 	//缓冲客户队列
 	std::vector<ClientSocket *>_clientsBuff;

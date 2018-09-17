@@ -25,7 +25,7 @@ void cmdThread()
 	
 	
 }
-const int cCount = 8;
+const int cCount = 10000;
 const int tCount = 4;
 EasyTcpClient *c1[cCount];
 void sendThread(int id)//14
@@ -61,7 +61,7 @@ void sendThread(int id)//14
 		//	std::cout << "Sending ..." << std::endl;
 			c1[i]->SendData(log,nLen);
 		//	_sleep(2000);
-			c1[i]->OnRun();
+		//	c1[i]->OnRun();
 
 		}
 	}
