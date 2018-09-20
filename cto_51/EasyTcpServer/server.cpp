@@ -44,7 +44,7 @@ public:
 	//如果只开启1个cellServer就是安全的
 	virtual void OnNetMsg(ClientSocket* pClient, DataHeader* header)
 	{
-		_recvCount++;
+		_msgCount++;
 		switch (header->cmd)
 		{
 		case CMD_LOGIN:
@@ -54,7 +54,7 @@ public:
 			//printf("收到客户端<Socket=%d>请求：CMD_LOGIN,数据长度：%d,userName=%s PassWord=%s\n", cSock, login->dataLength, login->userName, login->PassWord);
 			//忽略判断用户密码是否正确的过程
 			LoginResult ret;
-		//	pClient->SendData(&ret);
+			pClient->SendData(&ret);
 		}
 		break;
 		case CMD_LOGOUT:
@@ -76,7 +76,12 @@ public:
 		break;
 		}
 	}
+	virtual void OnNetRecv(ClientSocket* pClient)
+	{
+		_recvCount++;
+	}
 private:
+
 
 };
 
@@ -87,7 +92,7 @@ int main()
 	server.InitSocket();
 	server.Bind(nullptr, 7856);
 	server.Listen(5);
-	server.Start(4);
+	server.Start(1);
 
 	//启动UI线程
 	std::thread t1(cmdThread);

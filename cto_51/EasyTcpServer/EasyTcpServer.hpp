@@ -80,6 +80,8 @@ public:
 	virtual void OnNetLeave(ClientSocket* pClient) = 0;
 	//客户端消息事件
 	virtual void OnNetMsg(ClientSocket* pClient, DataHeader* header) = 0;
+	//rec
+	virtual void OnNetRecv(ClientSocket* pClient) =0;
 
 
 };
@@ -222,6 +224,7 @@ public:
 			}
 
 #else
+			std::vector<ClientSocket*> temp;
 			for (auto iter : _clients)
 			{
 				if (FD_ISSET(iter.second->sockfd(), &fd_read))
@@ -230,14 +233,10 @@ public:
 					//	ret = ;
 					if (-1 == RecvData(iter.second))
 					{
-						_clients_change = true;
-						temp.push_back(iter.second);
 						if (_pNetEvent)
 							_pNetEvent->OnNetLeave(iter.second);
-						//	delete iter.second;
-						_clients.erase(iter.first);
-
-
+						_clients_change = false;
+						temp.push_back(iter.second);
 					}
 				}
 			}
@@ -246,23 +245,22 @@ public:
 				_clients.erase(iter->sockfd());
 				delete iter;
 			}
-#endif // _WIN32
-			std::vector<ClientSocket *>temp;
-			
-			
-			//	std::cout << "空闲时间处理其他数据" << "\n";
-			//return true;
+#endif
 		}
 
 		return false;
 
 	}
-	char _szRecv[RECV_BUFF_SIZE] = {};//第二缓冲区，双缓冲
-	//接收数据,处理粘包
-	int RecvData(ClientSocket  *pClient)
+	//缓冲区
+	//char _szRecv[RECV_BUFF_SZIE] = {};
+	//接收数据 处理粘包 拆分包
+	int RecvData(ClientSocket* pClient)
 	{
 
-		int nLen = (int)recv(pClient->sockfd(), _szRecv, RECV_BUFF_SIZE, 0);
+		//接收客户端数据
+		char* szRecv = pClient->msgBuf() + pClient->getLast();
+		int nLen = (int)recv(pClient->sockfd(), szRecv, (RECV_BUFF_SIZE*5)- pClient->getLast(), 0);
+		_pNetEvent->OnNetRecv(pClient);
 		//
 		if (nLen < 0)
 		{
@@ -270,7 +268,7 @@ public:
 			return -1;
 		}
 		//将收取的数据拷贝到消息缓冲区
-		memcpy(pClient->msgBuf() + pClient->getLast(), _szRecv, nLen);
+//		memcpy(pClient->msgBuf() + pClient->getLast(), _szRecv, nLen);
 		//	DataHeader *header = (DataHeader *)_szMsgBuf;
 		pClient->setLastPos(pClient->getLast() + nLen);
 //		int a = sizeof(DataHeader);
@@ -328,8 +326,7 @@ private:
 	INetEvent* _pNetEvent;
 };
 
-#define _CellServer_THREAD_COUNT 4
-class EasyTcpServer:public INetEvent
+class EasyTcpServer : public INetEvent
 {
 private:
 	SOCKET _sock;
@@ -338,10 +335,12 @@ private:
 	//每秒消息计时
 	CELLTimestamp _tTime;
 protected:
-	//收到消息计数
+	//socket Recv 计数
 	std::atomic_int _recvCount;
 	//客户端计数
 	std::atomic_int _clientCount;
+	//收到消息计数
+	std::atomic_int _msgCount;
 public:
 	EasyTcpServer()
 	{
@@ -349,7 +348,7 @@ public:
 		_sock = INVALID_SOCKET;
 		_recvCount = 0;
 		_clientCount = 0;
-	//	_recvCount = 0;
+		_msgCount = 0;
 	}
 	virtual ~EasyTcpServer()
 	{
@@ -564,12 +563,13 @@ public:
 	//计算并输出每秒收到的网络消息
 	void time4msg()
 	{
-	//	_recvCount++;
+	//	_++;
 		auto t1 = _tTime.getElapsedSecond();
 		if (t1 >= 1.0)
 		{
-			printf("thread<%d>,time<%lf>,socket<%d>,clients<%d>,recvCount<%d>\n", _cellServers.size(), t1, _sock,(int)_clientCount, (int)(_recvCount/ t1));
+			printf("thread<%d>,time<%lf>,socket<%d>,clients<%d>,recvCount<%d>,recvMsg<%d>\n", _cellServers.size(), t1, _sock,(int)_clientCount, (int)(_recvCount/ t1), (int)(_msgCount / t1));
 			_recvCount = 0;
+			_msgCount = 0;
 			_tTime.update();
 		}	
 
@@ -589,7 +589,7 @@ public:
 	//如果只开启1个cellServer就是安全的
 	virtual void OnNetMsg(ClientSocket* pClient, DataHeader* header)
 	{
-		_recvCount++;
+		//_recvCount++;
 	}
 };
 

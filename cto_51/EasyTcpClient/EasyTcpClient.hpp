@@ -150,7 +150,7 @@ public:
 	}
 	//接收缓冲区
 
-	char _szRecv[RECV_BUFF_SIZE] = {};
+//	char _szRecv[RECV_BUFF_SIZE] = {};
 	//第二缓冲区，消息缓冲区
 	char _szMsgBuf[RECV_BUFF_SIZE * 5] = {};
 	//接收数据,处理粘包
@@ -159,7 +159,8 @@ public:
 	int RecvData(SOCKET _cSock)
 	{
 		
-		int nLen = (int)recv(_cSock, _szRecv, RECV_BUFF_SIZE, 0);
+		char* szRecv = _szMsgBuf + _lastPos;
+		int nLen = (int)recv(_cSock, szRecv, RECV_BUFF_SIZE - _lastPos, 0);
 //		std::cout << "Recv Data from srv is " << nLen << "\n";
 //		return 0;
 		
@@ -170,7 +171,7 @@ public:
 			return -1;
 		}
 		//将收取的数据拷贝到消息缓冲区
-		memcpy(_szMsgBuf+_lastPos, _szRecv, nLen);
+//		memcpy(_szMsgBuf+_lastPos, _szRecv, nLen);
 	//	DataHeader *header = (DataHeader *)_szMsgBuf;
 		_lastPos +=nLen;
 		while(_lastPos >= sizeof(DataHeader))
