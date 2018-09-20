@@ -26,8 +26,8 @@ void cmdThread()
 	
 	
 }
-const int cCount = 1;
-const int tCount = 1;
+const int cCount = 4000;
+const int tCount = 4;
 EasyTcpClient *c1[cCount];
 std::atomic_int	secondCount = 0;
 std::atomic_int	readCount = 0;

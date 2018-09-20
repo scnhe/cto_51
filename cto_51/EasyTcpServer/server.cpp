@@ -55,7 +55,7 @@ public:
 			//忽略判断用户密码是否正确的过程
 			LoginResult ret;
 			pClient->SendData(&ret);
-		}
+		}//接收消息 ---处理 发送  生产者  数据缓冲区  消费者
 		break;
 		case CMD_LOGOUT:
 		{
@@ -92,7 +92,7 @@ int main()
 	server.InitSocket();
 	server.Bind(nullptr, 7856);
 	server.Listen(5);
-	server.Start(1);
+	server.Start(4);
 
 	//启动UI线程
 	std::thread t1(cmdThread);

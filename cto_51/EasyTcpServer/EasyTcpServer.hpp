@@ -34,8 +34,10 @@ public:
 	ClientSocket(SOCKET sockfd = INVALID_SOCKET)
 	{
 		_sockfd = sockfd;
-		memset(_szMsgBuf, 0, sizeof(_szMsgBuf));//这个忘记加括号了
+		memset(_szMsgBuf, 0, RECV_BUFF_SIZE);//这个忘记加括号了
+		memset(_szSendBuf, 0, SEND_BUFF_SIZE);//这个忘记加括号了
 		_lastPos = 0;
+		_lastSendPos = 0;
 	}
 
 	SOCKET sockfd()
@@ -57,19 +59,53 @@ public:
 	//发送指定Socket数据
 	int SendData( DataHeader *header)
 	{
-		if ( header)
+		int ret = SOCKET_ERROR;
+		//要发送的数据长度
+		int nSendLen = header->dataLength;
+		//要发送的数据
+		const char *pSendData = (const char *)header;
+		while (true)
 		{
-			return send(_sockfd, (const char *)header, header->dataLength, 0);
+			if ((_lastSendPos + nSendLen) >= SEND_BUFF_SIZE)
+			{
+				//计算发送缓冲区剩余空间
+				int nCopyLen = SEND_BUFF_SIZE - _lastSendPos;
+				memcpy(_szSendBuf + _lastSendPos, pSendData, nCopyLen);
+				pSendData += nCopyLen;
+				nSendLen -= nCopyLen;
+				ret = send(_sockfd, _szSendBuf, SEND_BUFF_SIZE, 0);
+				_lastSendPos = 0;
+				if (SOCKET_ERROR == ret)
+				{
+					return ret;
+				}
+
+			}
+			else
+			{
+				//将要发送的数据拷贝到数据缓冲区尾部
+				memcpy(_szSendBuf + _lastSendPos, pSendData, nSendLen);
+				_lastSendPos += nSendLen;
+				break;
+			}
+
 		}
-		return SOCKET_ERROR;
+		return ret;
 	}
 private:
 	
 	SOCKET _sockfd;// fd_set file descr set
-	char _szMsgBuf[RECV_BUFF_SIZE * 5];
+	//消息缓冲区
+	char _szMsgBuf[RECV_BUFF_SIZE];
 	//接收数据,处理粘包
 	//消息缓冲区数据尾部位置
 	int _lastPos;
+
+	//发送缓冲区
+	char _szSendBuf[SEND_BUFF_SIZE];
+
+	int _lastSendPos;
+	//
 };
 class INetEvent
 {
@@ -259,7 +295,7 @@ public:
 
 		//接收客户端数据
 		char* szRecv = pClient->msgBuf() + pClient->getLast();
-		int nLen = (int)recv(pClient->sockfd(), szRecv, (RECV_BUFF_SIZE*5)- pClient->getLast(), 0);
+		int nLen = (int)recv(pClient->sockfd(), szRecv, (RECV_BUFF_SIZE)- pClient->getLast(), 0);
 		_pNetEvent->OnNetRecv(pClient);
 		//
 		if (nLen < 0)

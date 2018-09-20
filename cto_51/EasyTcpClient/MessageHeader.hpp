@@ -86,5 +86,6 @@ struct NewUserJoin :public DataHeader
 	int SocketId;
 
 };
-#define RECV_BUFF_SIZE 10240
+#define RECV_BUFF_SIZE 10240*5
+#define SEND_BUFF_SIZE 10240*5
 #endif // !_MessageHeader_HPP
