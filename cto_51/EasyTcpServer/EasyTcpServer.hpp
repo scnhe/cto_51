@@ -28,6 +28,8 @@
 #include<thread>
 #include<mutex>
 #include<map>
+#include"CellTask.hpp"
+class CellServer;
 class  ClientSocket 
 {
 public:
@@ -115,13 +117,33 @@ public:
 	//客户端离开事件
 	virtual void OnNetLeave(ClientSocket* pClient) = 0;
 	//客户端消息事件
-	virtual void OnNetMsg(ClientSocket* pClient, DataHeader* header) = 0;
-	//rec
-	virtual void OnNetRecv(ClientSocket* pClient) =0;
-
+	virtual void OnNetMsg(CellServer* pCellServer, ClientSocket* pClient, DataHeader* header) = 0;
+	//recv事件
+	virtual void OnNetRecv(ClientSocket* pClient) = 0;
+private:
 
 };
 
+//网络消息发送任务
+class CellSendMsg2ClientTask :public CellTask
+{
+	ClientSocket* _pClient;
+	DataHeader* _pHeader;
+public:
+	CellSendMsg2ClientTask(ClientSocket* pClient, DataHeader* header)
+	{
+		_pClient = pClient;
+		_pHeader = header;
+	}
+	//发消息
+	void doTask()
+	{
+		_pClient->SendData(_pHeader);
+		delete _pHeader;
+	}
+
+};
+//网络消息接收服务类
 
 class CellServer
 {
@@ -178,14 +200,13 @@ public:
 	fd_set _fdRead_bak;
 	bool _clients_change;
 	SOCKET _maxSock;
-	bool OnRun()
+	void OnRun()
 	{
 		_clients_change = true;
 		while (isRun())
 		{
-			//从缓冲区客户队列取出客户数据
-			if (_clientsBuff.size() > 0)
-			{
+			if (!_clientsBuff.empty())
+			{//从缓冲队列里取出客户数据
 				std::lock_guard<std::mutex> lock(_mutex);
 				for (auto pClient : _clientsBuff)
 				{
@@ -231,14 +252,13 @@ public:
 			
 			///nfds 是一个整数值 是指fd_set集合中所有描述符(socket)的范围，而不是数量
 			///既是所有文件描述符最大值+1 在Windows中这个参数可以写0
-			timeval t = {0,0};
 			int ret = select(_maxSock + 1, &fd_read, nullptr, nullptr, nullptr);
 			if (ret < 0)
 			{
 				std::cout << "select任务结束！ " << "\n";
 				Close();
 		//		
-				return false;
+				return ;
 			}
 			else if (ret == 0)
 			{
@@ -284,7 +304,7 @@ public:
 #endif
 		}
 
-		return false;
+		return ;
 
 	}
 	//缓冲区
@@ -331,7 +351,7 @@ public:
 	//响应网络消息
 	virtual void OnNetMsg(ClientSocket* pClient, DataHeader* header)
 	{
-		_pNetEvent->OnNetMsg(pClient, header);
+		_pNetEvent->OnNetMsg(this, pClient, header);
 	}
 
 	void addClient(ClientSocket* pClient)
@@ -344,10 +364,18 @@ public:
 	void Start()
 	{
 		_thread = std::thread(std::mem_fn(&CellServer::OnRun), this);
+		_taskServer.Start();
 	}
 	size_t getClientCount()
 	{
 		return _clients.size() +_clientsBuff.size();
+	}
+
+	void addSendTask(ClientSocket* pClient, DataHeader* header)
+	{
+		CellSendMsg2ClientTask* task = new CellSendMsg2ClientTask(pClient, header);
+		_taskServer.addTask(task);
+	
 	}
 private:
 	SOCKET _sock;
@@ -360,6 +388,7 @@ private:
 	std::thread _thread;
 	//网络事件对象
 	INetEvent* _pNetEvent;
+	CellTaskServer _taskServer;
 };
 
 class EasyTcpServer : public INetEvent
@@ -625,7 +654,12 @@ public:
 	//如果只开启1个cellServer就是安全的
 	virtual void OnNetMsg(ClientSocket* pClient, DataHeader* header)
 	{
-		//_recvCount++;
+		_msgCount++;
+	}
+	virtual void OnNetRecv(ClientSocket* pClient)
+	{
+		_recvCount++;
+		//printf("client<%d> leave\n", pClient->sockfd());
 	}
 };
 

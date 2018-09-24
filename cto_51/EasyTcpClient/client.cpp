@@ -26,9 +26,10 @@ void cmdThread()
 	
 	
 }
-const int cCount = 4000;
+const int cCount = 5000;
 const int tCount = 4;
 EasyTcpClient *c1[cCount];
+//int n = sizeof(EasyTcpClient);
 std::atomic_int	secondCount = 0;
 std::atomic_int	readCount = 0;
 void sendThread(int id)//14
