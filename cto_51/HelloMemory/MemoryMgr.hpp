@@ -104,14 +104,14 @@ public:
 	{
 		assert(nullptr == _pBuf);
 		
-		if (!_pBuf)
+		if (_pBuf)//更正逻辑错误
 		{
 			return;
 		}
 
 		//计算内存池的大小
-		size_t realSzie = _nSize + sizeof(MemoryBlock);
-		size_t bufSize = realSzie*_nBlockSize;
+		size_t realSize = _nSize + sizeof(MemoryBlock);
+		size_t bufSize = realSize*_nBlockSize;
 		//向系统申请池的内存
 		_pBuf = (char*)malloc(bufSize);
 
@@ -126,9 +126,9 @@ public:
 		MemoryBlock* pTemp1 = _pHeader;
 		for (size_t n = 1; n < _nBlockSize; n++)
 		{
-			MemoryBlock* pTemp2 = (MemoryBlock*)(_pBuf + (n* realSzie));
+			MemoryBlock* pTemp2 = (MemoryBlock*)(_pBuf + (n* realSize));
 			pTemp2->bPool = true;
-			pTemp2->nID = 0;
+			pTemp2->nID = n;
 			pTemp2->nRef = 0;
 			pTemp2->pAlloc = this;
 			pTemp2->pNext = nullptr;
