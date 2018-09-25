@@ -2,6 +2,14 @@
 #define _MemoryMgr_hpp
 #include<stdlib.h>
 #include<assert.h>
+#include<iostream>
+#ifdef _DEBUG
+#include<stdio.h>
+	#define xPrintf(...) printf(__VA_ARGS__)
+#else
+	#define xPrintf(...)
+#endif // DEBUG
+
 #define MAX_MEMORY_SIZE 64
  class MemoryAlloc;
 //内存块，内存池的最小单元
@@ -67,8 +75,8 @@ public:
 			assert(0 == pReturn->nRef);
 			pReturn->nRef = 1;
 		}
-
-		return ((char *)pReturn+sizeof(MemoryBlock));
+		xPrintf("allocMem: %llx, id=%d, size=%d\n", pReturn, pReturn->nID, nSize);
+		return ((char*)pReturn + sizeof(MemoryBlock));
 	}
 	//释放内存
 	void freeMemory(void* pMem)
@@ -102,9 +110,10 @@ public:
 		}
 
 		//计算内存池的大小
-		size_t buffSize = _nSize * _nBlockSize;
+		size_t realSzie = _nSize + sizeof(MemoryBlock);
+		size_t bufSize = realSzie*_nBlockSize;
 		//向系统申请池的内存
-		_pBuf = (char *)malloc(buffSize);
+		_pBuf = (char*)malloc(bufSize);
 
 		//初始化内存池
 		_pHeader = (MemoryBlock*)_pBuf;
@@ -117,7 +126,7 @@ public:
 		MemoryBlock* pTemp1 = _pHeader;
 		for (size_t n = 1; n < _nBlockSize; n++)
 		{
-			MemoryBlock* pTemp2 = (MemoryBlock*)(_pBuf + (n*_nSize));
+			MemoryBlock* pTemp2 = (MemoryBlock*)(_pBuf + (n* realSzie));
 			pTemp2->bPool = true;
 			pTemp2->nID = 0;
 			pTemp2->nRef = 0;
@@ -185,7 +194,9 @@ public:
 			pReturn->nRef = 1;
 			pReturn->pAlloc = nullptr;
 			pReturn->pNext = nullptr;
-			return ((char *)pReturn+(sizeof(MemoryBlock)));
+			std::cout << pReturn->nID << " " << nSize << std::endl;
+			xPrintf("allocMem: %llx, id=%d, size=%d\n", pReturn , pReturn->nID, nSize);
+			return ((char*)pReturn + sizeof(MemoryBlock));
 		}
 
 	}
@@ -193,6 +204,7 @@ public:
 	void freeMem(void* pMem)
 	{
 		MemoryBlock* pBlock = (MemoryBlock*)((char*)pMem - sizeof(MemoryBlock));
+		xPrintf("freeMem: %llx, id=%d\n", pBlock, pBlock->nID);
 		if (pBlock->bPool)
 		{
 			pBlock->pAlloc->freeMemory(pMem);

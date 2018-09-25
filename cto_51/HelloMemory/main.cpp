@@ -3,17 +3,26 @@
 #include<iostream>
 int main()
 {
+	/*
 	//1
 	char* data1 = new char[128];
 	delete[] data1;
 	//2
-	std::cout << "delete 128" << std::endl;
+	
 	char* data2 = new char;
 	delete data2;
-	std::cout << "delete char" << std::endl;
 	//3
-	char* data3 = (char*)malloc(64);
-	free(data3);
-	
+	char* data3 = new char[64];
+	delete[] data3;
+		*/
+	char* data[12];
+	for (size_t i = 0; i < 12; i++)
+	{
+		data[i] = new char[60];
+	}
+	for (size_t i = 0; i < 12; i++)
+	{
+		delete[] data[i];
+	}
 	return 0;
 }
