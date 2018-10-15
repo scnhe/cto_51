@@ -18,7 +18,7 @@
     <ClCompile Include="server.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="CellTask.cpp">
+    <ClCompile Include="CellTask.hpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
