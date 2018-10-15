@@ -139,12 +139,15 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Alloctor.cpp" />
     <ClCompile Include="CellTask.hpp" />
     <ClCompile Include="server.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Alloctor.h" />
     <ClInclude Include="CELLTimestamp.hpp" />
     <ClInclude Include="EasyTcpServer.hpp" />
+    <ClInclude Include="MemoryMgr.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

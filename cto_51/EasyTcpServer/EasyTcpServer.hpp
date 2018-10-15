@@ -2,7 +2,7 @@
 #define _EASYTCPSERVER_HPP
 
 #ifdef _WIN32
-
+#include"Alloctor.h"
 #ifndef FD_SETSIZE//在server.cpp中提前引入windsock2.h 导致这里的宏定义失效
 #define FD_SETSIZE 2506
 #endif // !FD_SETSIZE
