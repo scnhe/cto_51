@@ -36,9 +36,24 @@ LIST * reverse(LIST **list)
 	*list = q;
 	return  q;
 }
+class MB
+{
+
+	int a;
+};
+class MC :public MB
+{
+	int c;
+};
+typedef std::shared_ptr<MB> MBPtr;
+typedef std::shared_ptr<MC> MBCtr;
+void testapi(MBPtr &b)
+{}
 int main()
 {
-	
+	auto sp = std::make_shared<MC>();
+	testapi(sp);
+
 	ChildD  *pd = new ChildD[5];
 	delete []pd;//delete会调用析构函数，针对数组的情况下，delete仅仅调研首指针对象的析构函数
 	//getchar();

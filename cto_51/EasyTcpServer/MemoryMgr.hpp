@@ -4,7 +4,7 @@
 #include<assert.h>
 #include<mutex>//Ëø
 
-#ifdef _DEBUG
+#ifndef _DEBUG
 #include<stdio.h>
 #define xPrintf(...) printf(__VA_ARGS__)
 #else
@@ -73,7 +73,7 @@ public:
 			pReturn->nRef = 1;
 			pReturn->pAlloc = nullptr;
 			pReturn->pNext = nullptr;
-			printf("allocMem: %llx, id=%d, size=%d\n", pReturn, pReturn->nID, nSize);
+			
 		}
 		else {
 			pReturn = _pHeader;

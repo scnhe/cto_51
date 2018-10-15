@@ -29,14 +29,14 @@ class MyServer : public EasyTcpServer
 public:
 
 	//只会被一个线程触发 安全
-	virtual void OnNetJoin(ClientSocket* pClient)
+	virtual void OnNetJoin(ClientSocketPtr& pClient)
 	{
 		EasyTcpServer::OnNetJoin(pClient);
 	//	printf("client<%d> join\n", pClient->sockfd());
 	}
 	//cellServer 4 多个线程触发 不安全
 	//如果只开启1个cellServer就是安全的
-	virtual void OnNetLeave(ClientSocket* pClient)
+	virtual void OnNetLeave(ClientSocketPtr& pClient)
 	{
 	//	_clientCount--;
 		EasyTcpServer::OnNetLeave(pClient);
@@ -44,9 +44,9 @@ public:
 	}
 	//cellServer 4 多个线程触发 不安全
 	//如果只开启1个cellServer就是安全的
-	virtual void OnNetMsg(CellServer* pCellServer, ClientSocket* pClient, DataHeader* header)
+	virtual void OnNetMsg(CellServer* pCellServer, ClientSocketPtr& pClient, DataHeader* header)
 	{
-		EasyTcpServer::OnNetMsg(pClient, header);
+		EasyTcpServer::OnNetMsg(pCellServer, pClient, header);
 		
 		switch (header->cmd)
 		{
@@ -58,8 +58,9 @@ public:
 			//忽略判断用户密码是否正确的过程
 	//		LoginResult ret;
 	//		pClient->SendData(&ret);
-			LoginResult* ret = new LoginResult();
-			pCellServer->addSendTask(pClient, ret);
+			//LoginResult* ret = new LoginResult();
+			auto ret2 = std::make_shared<LoginResult>();
+			pCellServer->addSendTask(pClient, (DataHeaderPtr)ret2);
 		}//接收 消息---处理 发送   生产者 数据缓冲区  消费者 
 		break;
 		case CMD_LOGOUT:
