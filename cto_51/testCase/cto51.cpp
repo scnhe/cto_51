@@ -1,5 +1,6 @@
 #include<iostream>
 #include"ChildD.h"
+#include<assert.h>
 int char2Integer(char *str)
 {
 	int num = 0;
@@ -40,10 +41,21 @@ class MB
 {
 
 	int a;
+public :
+	virtual void show() {
+		std::cout << "MBSHOW..." << std::endl;
+	}//使用dynamic_cast转换的类必须具有多态
 };
 class MC :public MB
 {
 	int c;
+public:
+	void show() {
+		std::cout << "McSHOW..." << std::endl;
+	}
+	void show2() {
+		std::cout << "McSHOW2..." << std::endl;
+	}
 };
 typedef std::shared_ptr<MB> MBPtr;
 typedef std::shared_ptr<MC> MBCtr;
@@ -51,9 +63,29 @@ void testapi(MBPtr &b)
 {}
 int main()
 {
-	auto sp = std::make_shared<MC>();
-	testapi(sp);
+//	auto sp = std::make_shared<MC>();
+//	testapi((MBPtr)sp);
+	//向上转换
+	MC *pc = new MC;
+	MB *pb = static_cast<MB*>(pc);
+	pb->show();
+	//向下转换
+	std::cout << "MBBBBBBBB" << std::endl;
+	MB *pmb = new MB;
+	pmb->show();
+	MC *pMc = dynamic_cast<MC *>(pmb);
+	assert(nullptr!=pMc);
+	pMc->show();
+	return 0;
+	std::cout << "STATIC MBBBBBBBB" << std::endl;
+	MC *pMd = static_cast<MC*>(pmb);
+	pMd->show();
+	pMd->show2();
+	return 0;
 
+	//
+	//
+	//
 	ChildD  *pd = new ChildD[5];
 	delete []pd;//delete会调用析构函数，针对数组的情况下，delete仅仅调研首指针对象的析构函数
 	//getchar();
